@@ -8,8 +8,6 @@ extern int yylex();
 extern int yyparse();
 extern FILE *yyin;
 
-// TODO Try to eliminate HEAD.
-// var_dec_t *HEAD = NULL;
 program_t *ROOT = NULL;
 
 void yyerror(program_t *root, const char *s);
