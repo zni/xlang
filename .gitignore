@@ -1,0 +1,3 @@
+parser
+src/parser.tab.*
+src/*.yy.c
