@@ -23,6 +23,10 @@ if                  { return IF; }
 
 then                { return THEN; }
 
+while               { return WHILE; }
+
+do                  { return DO; }
+
 :=                  { return ASSIGN; }
 
 [+]                 { return '+'; }

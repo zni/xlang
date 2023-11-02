@@ -4,6 +4,7 @@ typedef enum type {
     VAR_DEC,
     IF_,
     ASSIGN_,
+    WHILE_,
 } type_t;
 
 typedef enum exprval {
@@ -14,8 +15,6 @@ typedef enum exprval {
     MUL,
     DIV
 } exprval_t;
-
-
 
 struct expression;
 typedef struct expression expression_t;
@@ -38,6 +37,10 @@ struct statement {
             expression_t *cond;
             statement_t *body;
         } if_;
+        struct while_stmt {
+            expression_t *cond;
+            statement_t *body;
+        } while_;
         struct assign_stmt {
             char *var;
             expression_t *value;

@@ -32,6 +32,8 @@ void descend_expr(expression_t*);
 %token _END
 %token IF
 %token THEN
+%token WHILE
+%token DO
 %token ASSIGN
 %type <stmtval> statements
 %type <stmtval> statement
@@ -120,6 +122,14 @@ statement:
         assign->next = NULL;
         $$ = assign;
     }
+|   WHILE expression DO statement {
+        statement_t *while_ = malloc(sizeof(statement_t));
+        while_->t = WHILE_;
+        while_->while_.cond = $2;
+        while_->while_.body = $4;
+        while_->next = NULL;
+        $$ = while_;
+    }
 ;
 
 expression:
@@ -174,7 +184,7 @@ int main(int argc, char **argv)
         printf("root is NULL\n");
         return 1;
     }
-    
+
     var_dec_t *list;
     list = root->decs;
 
