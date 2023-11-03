@@ -11,7 +11,7 @@ END_P                   [.]
 
 %%
 
-{DIGIT}+            { yylval.digitval = atoi(yytext); return DIGITS; }
+{DIGIT}+                    { yylval.digitval = atoi(yytext); return DIGITS; }
 
 (var|VAR)                   { return VAR; }
 
