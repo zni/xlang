@@ -37,6 +37,8 @@ END_P                   [.]
 
 [*]                         { return '*'; }
 
+[/]                         { return '/'; }
+
 -                           { return '-'; }
 
 ,                           { return ','; }

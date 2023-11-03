@@ -26,7 +26,7 @@ void descend_expr(expression_t*);
     var_dec_t *decval;
     program_t *progval;
 }
-%left '-' '+' '*' LTE GTE EQ
+%left '-' '+' '*' '/' LTE GTE EQ
 %token VAR
 %token <ival> IDENT
 %token END_PROGRAM
@@ -214,6 +214,13 @@ expression:
         expr->right = $3;
         $$ = expr;
     }
+|   expression '/' expression {
+        expression_t *expr = malloc(sizeof(expression_t));
+        expr->t = DIV;
+        expr->left = $1;
+        expr->right = $3;
+        $$ = expr;
+    }
 |   expression LTE expression {
         expression_t *expr = malloc(sizeof(expression_t));
         expr->t = LTE_;
@@ -317,6 +324,8 @@ void follow_stmts(statement_t *stmt)
         printf("begin\n");
         follow_stmts(stmt->begin_.body);
         printf("end\n");
+    } else if (stmt->t == CALL_) {
+        printf("CALL %s\n", stmt->call_.var);
     }
     follow_stmts(stmt->next);
 }
@@ -342,6 +351,10 @@ void descend_expr(expression_t *node)
     } else if (node->t == MUL) {
         descend_expr(node->left);
         printf(" * ");
+        descend_expr(node->right);
+    } else if (node->t == DIV) {
+        descend_expr(node->left);
+        printf(" / ");
         descend_expr(node->right);
     } else if (node->t == LTE_) {
         descend_expr(node->left);
