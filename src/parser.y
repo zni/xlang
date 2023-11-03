@@ -12,12 +12,15 @@ program_t *ROOT = NULL;
 
 void yyerror(program_t *root, const char *s);
 void reconstruct_program(program_t*);
+void follow_blocks(block_t*);
+void follow_decs(var_dec_t*);
 void follow_stmts(statement_t*);
 void descend_expr(expression_t*);
 %}
 %union {
     int digitval;
     char *ival;
+    block_t *blockval;
     statement_t *stmtval;
     expression_t *exprval;
     var_dec_t *decval;
@@ -39,6 +42,8 @@ void descend_expr(expression_t*);
 %token LTE
 %token GTE
 %token EQ
+%type <blockval> blocks
+%type <blockval> block
 %type <stmtval> statements
 %type <stmtval> statement
 %type <exprval> expression
@@ -48,27 +53,45 @@ void descend_expr(expression_t*);
 
 %%
 pl0:
-    blocks END_PROGRAM
+    blocks END_PROGRAM {
+        root->blocks = $1;
+    }
 ;
 
 blocks:
-    blocks block
-|   block
+    blocks block {
+        block_t **head = &($1);
+        block_t **next_blk = &($1);
+        while (*next_blk != NULL) {
+            next_blk = &(*next_blk)->next;
+        }
+        *next_blk = $2;
+        $$ = *head;
+    }
+|   block {
+        $$ = $1;
+    }
 ;
 
 block:
     statements {
-        root->stmts = $statements;
+        block_t *block = malloc(sizeof(block_t));
+        block->decs = NULL;
+        block->stmts = $1;
+        $$ = block;
     }
-|   VAR declarations SEMI {
-        root->decs = $declarations;
+|   VAR declarations SEMI statements {
+        block_t *block = malloc(sizeof(block_t));
+        block->decs = $2;
+        block->stmts = $4;
+        $$ = block;
     }
 ;
 
 declarations:
     declarations ',' declaration {
-        var_dec_t **head = &(root->decs);
-        var_dec_t **next_dec = &(root->decs);
+        var_dec_t **head = &($1);
+        var_dec_t **next_dec = &($1);
         while (*next_dec != NULL) {
             next_dec = &(*next_dec)->next;
         }
@@ -76,13 +99,7 @@ declarations:
         $$ = *head;
     }
 |   declaration {
-        var_dec_t **head = &(root->decs);
-        var_dec_t **next_dec = &(root->decs);
-        while (*next_dec != NULL) {
-            next_dec = &(*next_dec)->next;
-        }
-        *next_dec = $1;
-        $$ = *head;
+        $$ = $1;
     }
 ;
 
@@ -209,8 +226,7 @@ int main(int argc, char **argv)
         yyin = stdin;
     }
     program_t *root = malloc(sizeof(program_t));
-    root->decs = NULL;
-    root->stmts = NULL;
+    root->blocks = NULL;
     yyparse(root);
 
     reconstruct_program(root);
@@ -218,18 +234,27 @@ int main(int argc, char **argv)
 
 void reconstruct_program(program_t *root)
 {
-    var_dec_t *list;
-    list = root->decs;
-
-    var_dec_t *tmp = NULL;
-    while (list != NULL) {
-        printf("var %s;\n", list->var);
-        list = list->next;
-    }
-
-    statement_t *stmts = root->stmts;
-    follow_stmts(stmts);
+    block_t *blocks;
+    blocks = root->blocks;
+    follow_blocks(blocks);
     printf(".\n");
+}
+
+void follow_blocks(block_t *block)
+{
+    while (block != NULL) {
+        follow_decs(block->decs);
+        follow_stmts(block->stmts);
+        block = block->next;
+    }
+}
+
+void follow_decs(var_dec_t *dec)
+{
+    while (dec != NULL) {
+        printf("var %s;\n", dec->var);
+        dec = dec->next;
+    }
 }
 
 void follow_stmts(statement_t *stmt)

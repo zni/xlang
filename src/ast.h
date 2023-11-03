@@ -63,10 +63,17 @@ struct var_dec {
     var_dec_t *next;
 };
 
+struct block;
+typedef struct block block_t;
+struct block {
+    var_dec_t *decs;
+    statement_t *stmts;
+    block_t *next;
+};
+
 struct program;
 typedef struct program program_t;
 struct program {
-    var_dec_t *decs;
-    statement_t *stmts;
+    block_t *blocks;
 };
 #endif
