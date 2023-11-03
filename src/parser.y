@@ -11,6 +11,7 @@ extern FILE *yyin;
 program_t *ROOT = NULL;
 
 void yyerror(program_t *root, const char *s);
+void reconstruct_program(program_t*);
 void follow_stmts(statement_t*);
 void descend_expr(expression_t*);
 %}
@@ -180,22 +181,24 @@ int main(int argc, char **argv)
     root->stmts = NULL;
     yyparse(root);
 
-    if (root == NULL) {
-        printf("root is NULL\n");
-        return 1;
-    }
+    reconstruct_program(root);
+}
 
+void reconstruct_program(program_t *root)
+{
     var_dec_t *list;
     list = root->decs;
 
     var_dec_t *tmp = NULL;
     while (list != NULL) {
-        printf("\tvar %s;\n", list->var);
+        printf("var %s;\n", list->var);
         list = list->next;
     }
 
+    printf("begin\n");
     statement_t *stmts = root->stmts;
     follow_stmts(stmts);
+    printf("end.\n");
 }
 
 void follow_stmts(statement_t *stmt)
