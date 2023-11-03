@@ -1,7 +1,7 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-#include "ast.h"
+#include "include/ast.h"
 
 // Flex functions and variables.
 extern int yylex();
