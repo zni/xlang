@@ -1,7 +1,8 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-#include "include/ast.h"
+#include "ast.h"
+#include "semantics.h"
 
 // Flex functions and variables.
 extern int yylex();
@@ -11,11 +12,6 @@ extern FILE *yyin;
 program_t *ROOT = NULL;
 
 void yyerror(program_t *root, const char *s);
-void reconstruct_program(program_t*);
-void follow_blocks(block_t*);
-void follow_decs(var_dec_t*);
-void follow_stmts(statement_t*);
-void descend_expr(expression_t*);
 %}
 %union {
     int digitval;
@@ -258,117 +254,8 @@ int main(int argc, char **argv)
     root->blocks = NULL;
     yyparse(root);
 
-    reconstruct_program(root);
-}
 
-void reconstruct_program(program_t *root)
-{
-    block_t *blocks;
-    blocks = root->blocks;
-    follow_blocks(blocks);
-    printf(".\n");
-}
-
-void follow_blocks(block_t *block)
-{
-    while (block != NULL) {
-        if (block->t == PROCEDURE) {
-            printf("procedure %s;\n", block->procedure.name);
-            follow_blocks(block->procedure.context);
-        } else if (block->t == DECLARATION) {
-            follow_decs(block->decs);
-        } else if (block->t == STATEMENT) {
-            follow_stmts(block->stmts);
-            putchar('\n');
-        }
-        block = block->next;
-    }
-}
-
-void follow_decs(var_dec_t *dec)
-{
-    if (dec != NULL) {
-        printf("var ");
-    }
-
-    while (dec != NULL) {
-        if (dec->next == NULL)
-            printf("%s", dec->var);
-        else
-            printf("%s, ", dec->var);
-        dec = dec->next;
-    }
-
-    printf(";\n");
-}
-
-void follow_stmts(statement_t *stmt)
-{
-    if (stmt == NULL) {
-        return;
-    } else if (stmt->t == ASSIGN_) {
-        printf("%s := ", stmt->assign.var);
-        descend_expr(stmt->assign.value);
-        putchar('\n');
-    } else if (stmt->t == IF_) {
-        printf("if ");
-        descend_expr(stmt->if_.cond);
-        printf("then\n");
-        follow_stmts(stmt->if_.body);
-    } else if (stmt->t == WHILE_) {
-        printf("while ");
-        descend_expr(stmt->while_.cond);
-        printf("do\n");
-        follow_stmts(stmt->while_.body);
-    } else if (stmt->t == BEGIN_) {
-        printf("begin\n");
-        follow_stmts(stmt->begin_.body);
-        printf("end\n");
-    } else if (stmt->t == CALL_) {
-        printf("CALL %s\n", stmt->call_.var);
-    }
-    follow_stmts(stmt->next);
-}
-
-void descend_expr(expression_t *node) 
-{
-    if (node == NULL) {
-        return;
-    }else if (node->t == IDENT_) {
-        printf("%s ", node->ident);
-        return;
-    } else if (node->t == DIGITS_) {
-        printf("%d ", node->digits);
-        return;
-    } else if (node->t == ADD) {
-        descend_expr(node->left);
-        printf(" + ");
-        descend_expr(node->right);
-    } else if (node->t == SUB) {
-        descend_expr(node->left);
-        printf(" - ");
-        descend_expr(node->right);
-    } else if (node->t == MUL) {
-        descend_expr(node->left);
-        printf(" * ");
-        descend_expr(node->right);
-    } else if (node->t == DIV) {
-        descend_expr(node->left);
-        printf(" / ");
-        descend_expr(node->right);
-    } else if (node->t == LTE_) {
-        descend_expr(node->left);
-        printf(" <= ");
-        descend_expr(node->right);
-    } else if (node->t == GTE_) {
-        descend_expr(node->left);
-        printf(" >= ");
-        descend_expr(node->right);
-    } else if (node->t == EQ_) {
-        descend_expr(node->left);
-        printf(" <= ");
-        descend_expr(node->right);
-    }
+    semantic_analysis(root);
 }
 
 void yyerror(program_t *root, const char *s) {
