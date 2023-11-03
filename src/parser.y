@@ -5,7 +5,7 @@
 
 // Flex functions and variables.
 extern int yylex();
-extern int yyparse();
+extern int yyparse(program_t*);
 extern FILE *yyin;
 
 program_t *ROOT = NULL;
