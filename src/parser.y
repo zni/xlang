@@ -26,12 +26,12 @@ void descend_expr(expression_t*);
     var_dec_t *decval;
     program_t *progval;
 }
-%left '-' '+' LTE GTE EQ
+%left '-' '+' '*' LTE GTE EQ
 %token VAR
 %token <ival> IDENT
-%token SEMI
 %token END_PROGRAM
 %token <digitval> DIGITS
+%token PROC
 %token _BEGIN
 %token _END
 %token IF
@@ -39,12 +39,13 @@ void descend_expr(expression_t*);
 %token WHILE
 %token DO
 %token ASSIGN
+%token CALL
 %token LTE
 %token GTE
 %token EQ
 %type <blockval> blocks
 %type <blockval> block
-%type <stmtval> statements
+%type <stmtval> sequence_statements
 %type <stmtval> statement
 %type <exprval> expression
 %type <decval> declaration
@@ -74,16 +75,23 @@ blocks:
 ;
 
 block:
-    statements {
+    statement {
         block_t *block = malloc(sizeof(block_t));
-        block->decs = NULL;
+        block->t = STATEMENT;
         block->stmts = $1;
         $$ = block;
     }
-|   VAR declarations SEMI statements {
+|   VAR declarations ';' {
         block_t *block = malloc(sizeof(block_t));
+        block->t = DECLARATION;
         block->decs = $2;
-        block->stmts = $4;
+        $$ = block;
+    }
+|   PROC IDENT ';' blocks ';' {
+        block_t *block = malloc(sizeof(block_t));
+        block->t = PROCEDURE;
+        block->procedure.name = $2;
+        block->procedure.context = $4;
         $$ = block;
     }
 ;
@@ -112,21 +120,6 @@ declaration:
     }
 ;
 
-statements:
-    statements SEMI statement {
-        statement_t **head = &($1);
-        statement_t **next_stmt = &($1);
-        while (*next_stmt != NULL) {
-            next_stmt = &(*next_stmt)->next;
-        }
-        *next_stmt = $3;
-        $$ = *head;
-    }
-|   statement {
-        $$ = $1;
-    }
-;
-
 statement:
     IF expression THEN statement { 
         statement_t *if_ = malloc(sizeof(statement_t));
@@ -152,12 +145,34 @@ statement:
         while_->next = NULL;
         $$ = while_;
     }
-|   _BEGIN statements _END {
+|   _BEGIN sequence_statements _END {
         statement_t *begin_ = malloc(sizeof(statement_t));
         begin_->t = BEGIN_;
         begin_->begin_.body = $2;
         begin_->next = NULL;
         $$ = begin_;
+    }
+|   CALL IDENT {
+        statement_t *call = malloc(sizeof(statement_t));
+        call->t = CALL_;
+        call->call_.var = $2;
+        call->next = NULL;
+        $$ = call;
+    }
+;
+
+sequence_statements:
+    sequence_statements ';' statement {
+        statement_t **head = &($1);
+        statement_t **next_stmt = &($1);
+        while (*next_stmt != NULL) {
+            next_stmt = &(*next_stmt)->next;
+        }
+        *next_stmt = $3;
+        $$ = *head;
+    }
+|   statement {
+        $$ = $1;
     }
 ;
 
@@ -188,6 +203,13 @@ expression:
 |   expression '-' expression {
         expression_t *expr = malloc(sizeof(expression_t));
         expr->t = SUB;
+        expr->left = $1;
+        expr->right = $3;
+        $$ = expr;
+    }
+|   expression '*' expression {
+        expression_t *expr = malloc(sizeof(expression_t));
+        expr->t = MUL;
         expr->left = $1;
         expr->right = $3;
         $$ = expr;
@@ -243,18 +265,34 @@ void reconstruct_program(program_t *root)
 void follow_blocks(block_t *block)
 {
     while (block != NULL) {
-        follow_decs(block->decs);
-        follow_stmts(block->stmts);
+        if (block->t == PROCEDURE) {
+            printf("procedure %s;\n", block->procedure.name);
+            follow_blocks(block->procedure.context);
+        } else if (block->t == DECLARATION) {
+            follow_decs(block->decs);
+        } else if (block->t == STATEMENT) {
+            follow_stmts(block->stmts);
+            putchar('\n');
+        }
         block = block->next;
     }
 }
 
 void follow_decs(var_dec_t *dec)
 {
+    if (dec != NULL) {
+        printf("var ");
+    }
+
     while (dec != NULL) {
-        printf("var %s;\n", dec->var);
+        if (dec->next == NULL)
+            printf("%s", dec->var);
+        else
+            printf("%s, ", dec->var);
         dec = dec->next;
     }
+
+    printf(";\n");
 }
 
 void follow_stmts(statement_t *stmt)
@@ -300,6 +338,10 @@ void descend_expr(expression_t *node)
     } else if (node->t == SUB) {
         descend_expr(node->left);
         printf(" - ");
+        descend_expr(node->right);
+    } else if (node->t == MUL) {
+        descend_expr(node->left);
+        printf(" * ");
         descend_expr(node->right);
     } else if (node->t == LTE_) {
         descend_expr(node->left);

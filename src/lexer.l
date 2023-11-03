@@ -27,9 +27,15 @@ END_P                   [.]
 
 (do|DO)                     { return DO; }
 
+(procedure|PROCEDURE)       { return PROC; }
+
+(call|CALL)                 { return CALL; }
+
 :=                          { return ASSIGN; }
 
 [+]                         { return '+'; }
+
+[*]                         { return '*'; }
 
 -                           { return '-'; }
 
@@ -43,7 +49,7 @@ END_P                   [.]
 
 {IDENT}                     { yylval.ival = strdup(yytext); return IDENT; }
 
-{END_L}                     { return SEMI; }
+{END_L}                     { return ';'; }
 
 {END_P}                     { return END_PROGRAM; }
 

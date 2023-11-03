@@ -5,7 +5,8 @@ typedef enum type {
     IF_,
     ASSIGN_,
     WHILE_,
-    BEGIN_
+    BEGIN_,
+    CALL_
 } type_t;
 
 typedef enum exprval {
@@ -19,6 +20,12 @@ typedef enum exprval {
     GTE_,
     EQ_
 } exprval_t;
+
+typedef enum block_type {
+    PROCEDURE,
+    DECLARATION,
+    STATEMENT
+} block_type_t;
 
 struct expression;
 typedef struct expression expression_t;
@@ -52,6 +59,9 @@ struct statement {
         struct begin_stmt {
             statement_t *body;
         } begin_;
+        struct call_stmt {
+            char *var;
+        } call_;
     };
     statement_t *next;
 };
@@ -66,8 +76,15 @@ struct var_dec {
 struct block;
 typedef struct block block_t;
 struct block {
-    var_dec_t *decs;
-    statement_t *stmts;
+    block_type_t t;
+    union {
+        struct p {
+            char *name;
+            block_t *context;
+        } procedure;
+        var_dec_t *decs;
+        statement_t *stmts;
+    };
     block_t *next;
 };
 
