@@ -13,31 +13,39 @@ END_P                   [.]
 
 {DIGIT}+            { yylval.digitval = atoi(yytext); return DIGITS; }
 
-var                 { return VAR; }
+(var|VAR)                   { return VAR; }
 
-begin               { return _BEGIN; }
+(begin|BEGIN)               { return _BEGIN; }
 
-end                 { return _END; }
+(end|END)                   { return _END; }
 
-if                  { return IF; }
+(if|IF)                     { return IF; }
 
-then                { return THEN; }
+(then|THEN)                 { return THEN; }
 
-while               { return WHILE; }
+(while|WHILE)               { return WHILE; }
 
-do                  { return DO; }
+(do|DO)                     { return DO; }
 
-:=                  { return ASSIGN; }
+:=                          { return ASSIGN; }
 
-[+]                 { return '+'; }
+[+]                         { return '+'; }
 
--                   { return '-'; }
+-                           { return '-'; }
 
-{IDENT}             { yylval.ival = strdup(yytext); return IDENT; }
+,                           { return ','; }
 
-{END_L}             { return SEMI; }
+(<=)                        { return LTE; }
 
-{END_P}             { return END_PROGRAM; }
+>=                          { return GTE; }
+
+==                          { return EQ;  }
+
+{IDENT}                     { yylval.ival = strdup(yytext); return IDENT; }
+
+{END_L}                     { return SEMI; }
+
+{END_P}                     { return END_PROGRAM; }
 
 [ \t\r\n]+
 

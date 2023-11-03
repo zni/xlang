@@ -23,7 +23,7 @@ void descend_expr(expression_t*);
     var_dec_t *decval;
     program_t *progval;
 }
-%left '-' '+'
+%left '-' '+' LTE GTE EQ
 %token VAR
 %token <ival> IDENT
 %token SEMI
@@ -36,6 +36,9 @@ void descend_expr(expression_t*);
 %token WHILE
 %token DO
 %token ASSIGN
+%token LTE
+%token GTE
+%token EQ
 %type <stmtval> statements
 %type <stmtval> statement
 %type <exprval> expression
@@ -45,24 +48,31 @@ void descend_expr(expression_t*);
 
 %%
 pl0:
-    block END_PROGRAM
+    blocks END_PROGRAM
+;
+
+blocks:
+    blocks block
+|   block
 ;
 
 block:
-   declarations _BEGIN statements _END {
-        root->decs = $declarations;
+    statements {
         root->stmts = $statements;
+    }
+|   VAR declarations SEMI {
+        root->decs = $declarations;
     }
 ;
 
 declarations:
-    declarations declaration {
+    declarations ',' declaration {
         var_dec_t **head = &(root->decs);
         var_dec_t **next_dec = &(root->decs);
         while (*next_dec != NULL) {
             next_dec = &(*next_dec)->next;
         }
-        *next_dec = $2;
+        *next_dec = $3;
         $$ = *head;
     }
 |   declaration {
@@ -72,14 +82,14 @@ declarations:
             next_dec = &(*next_dec)->next;
         }
         *next_dec = $1;
-        $$ = *head; 
+        $$ = *head;
     }
 ;
 
 declaration:
-    VAR IDENT SEMI {
+    IDENT {
         var_dec_t *v = malloc(sizeof(var_dec_t));
-        v->var = $2;
+        v->var = $1;
         v->next = NULL;
         $$ = v;
     }
@@ -87,22 +97,16 @@ declaration:
 
 statements:
     statements SEMI statement {
-        statement_t **head = &(root->stmts);
-        statement_t **next_stmt = &(root->stmts);
+        statement_t **head = &($1);
+        statement_t **next_stmt = &($1);
         while (*next_stmt != NULL) {
             next_stmt = &(*next_stmt)->next;
         }
         *next_stmt = $3;
         $$ = *head;
     }
-|   statement{
-        statement_t **head = &(root->stmts);
-        statement_t **next_stmt = &(root->stmts);
-        while (*next_stmt != NULL) {
-            next_stmt = &(*next_stmt)->next;
-        }
-        *next_stmt = $1;
-        $$ = *head;
+|   statement {
+        $$ = $1;
     }
 ;
 
@@ -130,6 +134,13 @@ statement:
         while_->while_.body = $4;
         while_->next = NULL;
         $$ = while_;
+    }
+|   _BEGIN statements _END {
+        statement_t *begin_ = malloc(sizeof(statement_t));
+        begin_->t = BEGIN_;
+        begin_->begin_.body = $2;
+        begin_->next = NULL;
+        $$ = begin_;
     }
 ;
 
@@ -160,6 +171,27 @@ expression:
 |   expression '-' expression {
         expression_t *expr = malloc(sizeof(expression_t));
         expr->t = SUB;
+        expr->left = $1;
+        expr->right = $3;
+        $$ = expr;
+    }
+|   expression LTE expression {
+        expression_t *expr = malloc(sizeof(expression_t));
+        expr->t = LTE_;
+        expr->left = $1;
+        expr->right = $3;
+        $$ = expr;
+    }
+|   expression GTE expression {
+        expression_t *expr = malloc(sizeof(expression_t));
+        expr->t = GTE_;
+        expr->left = $1;
+        expr->right = $3;
+        $$ = expr;
+    }
+|   expression EQ expression {
+        expression_t *expr = malloc(sizeof(expression_t));
+        expr->t = EQ_;
         expr->left = $1;
         expr->right = $3;
         $$ = expr;
@@ -195,10 +227,9 @@ void reconstruct_program(program_t *root)
         list = list->next;
     }
 
-    printf("begin\n");
     statement_t *stmts = root->stmts;
     follow_stmts(stmts);
-    printf("end.\n");
+    printf(".\n");
 }
 
 void follow_stmts(statement_t *stmt)
@@ -214,6 +245,15 @@ void follow_stmts(statement_t *stmt)
         descend_expr(stmt->if_.cond);
         printf("then\n");
         follow_stmts(stmt->if_.body);
+    } else if (stmt->t == WHILE_) {
+        printf("while ");
+        descend_expr(stmt->while_.cond);
+        printf("do\n");
+        follow_stmts(stmt->while_.body);
+    } else if (stmt->t == BEGIN_) {
+        printf("begin\n");
+        follow_stmts(stmt->begin_.body);
+        printf("end\n");
     }
     follow_stmts(stmt->next);
 }
@@ -235,6 +275,18 @@ void descend_expr(expression_t *node)
     } else if (node->t == SUB) {
         descend_expr(node->left);
         printf(" - ");
+        descend_expr(node->right);
+    } else if (node->t == LTE_) {
+        descend_expr(node->left);
+        printf(" <= ");
+        descend_expr(node->right);
+    } else if (node->t == GTE_) {
+        descend_expr(node->left);
+        printf(" >= ");
+        descend_expr(node->right);
+    } else if (node->t == EQ_) {
+        descend_expr(node->left);
+        printf(" <= ");
         descend_expr(node->right);
     }
 }

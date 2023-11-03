@@ -5,6 +5,7 @@ typedef enum type {
     IF_,
     ASSIGN_,
     WHILE_,
+    BEGIN_
 } type_t;
 
 typedef enum exprval {
@@ -13,7 +14,10 @@ typedef enum exprval {
     ADD,
     SUB,
     MUL,
-    DIV
+    DIV,
+    LTE_,
+    GTE_,
+    EQ_
 } exprval_t;
 
 struct expression;
@@ -45,6 +49,9 @@ struct statement {
             char *var;
             expression_t *value;
         } assign;
+        struct begin_stmt {
+            statement_t *body;
+        } begin_;
     };
     statement_t *next;
 };
