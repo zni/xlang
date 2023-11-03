@@ -3,3 +3,4 @@ src/parser.tab.*
 src/*.yy.c
 local/*
 build.sh
+.vscode/*
