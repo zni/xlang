@@ -7,6 +7,11 @@ struct env_data;
 typedef struct env_data env_data_t;
 struct env_data {
     char *name;
+    struct ir_ {
+        char *orig;
+        char *sym;
+        unsigned short reg;
+    } ir;
     env_data_t *next;
 };
 

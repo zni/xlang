@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ast.h"
+#include "irgen.h"
 #include "semantics.h"
 
 // Flex functions and variables.
@@ -256,6 +257,7 @@ int main(int argc, char **argv)
 
 
     semantic_analysis(root);
+    convert_to_quads(root);
 }
 
 void yyerror(program_t *root, const char *s) {
