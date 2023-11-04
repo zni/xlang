@@ -9,7 +9,8 @@ typedef enum quad_type {
     COND_JMP,
     COPY,
     BINARY,
-    PROC_
+    PROC_,
+    NOP
 } quad_type_t;
 
 typedef enum quad_op {
@@ -20,10 +21,11 @@ typedef enum quad_op {
     GTE__,
     LTE__,
     EQ__,
-    IF__,
-    WHILE__,
     CALL__,
-    STORE__
+    STORE__,
+    GOTO__,
+    CMP__,
+    NOP__,
 } quad_op_t;
 
 typedef enum quad_result {
