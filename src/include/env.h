@@ -7,6 +7,7 @@ struct env_data;
 typedef struct env_data env_data_t;
 struct env_data {
     char *name;
+    env_data_t *next;
 };
 
 typedef struct env {
