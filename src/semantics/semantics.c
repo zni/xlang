@@ -7,7 +7,7 @@
 void follow_blocks(block_t *block, env_t *env);
 void follow_decs(var_dec_t *dec, env_t *env);
 void follow_stmts(statement_t *stmt, env_t *env);
-void descend_expr(expression_t *node);
+void descend_expr(expression_t *node, env_t *env);
 
 void semantic_analysis(program_t *root)
 {
@@ -54,12 +54,12 @@ void follow_stmts(statement_t *stmt, env_t *env)
         if (lookup_entry(env, stmt->assign.var) == NULL) {
             printf("Variable %s used before declaration.\n", stmt->assign.var);
         }
-        descend_expr(stmt->assign.value);
+        descend_expr(stmt->assign.value, env);
     } else if (stmt->t == IF_) {
-        descend_expr(stmt->if_.cond);
+        descend_expr(stmt->if_.cond, env);
         follow_stmts(stmt->if_.body, env);
     } else if (stmt->t == WHILE_) {
-        descend_expr(stmt->while_.cond);
+        descend_expr(stmt->while_.cond, env);
         follow_stmts(stmt->while_.body, env);
     } else if (stmt->t == BEGIN_) {
         follow_stmts(stmt->begin_.body, env);
@@ -71,34 +71,37 @@ void follow_stmts(statement_t *stmt, env_t *env)
     follow_stmts(stmt->next, env);
 }
 
-void descend_expr(expression_t *node)
+void descend_expr(expression_t *node, env_t *env)
 {
     if (node == NULL) {
         return;
     }else if (node->t == IDENT_) {
+        if (lookup_entry(env, node->ident) == NULL) {
+            printf("Variable %s used before declaration.\n", node->ident);
+        }
         return;
     } else if (node->t == DIGITS_) {
         return;
     } else if (node->t == ADD) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == SUB) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == MUL) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == DIV) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == LTE_) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == GTE_) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     } else if (node->t == EQ_) {
-        descend_expr(node->left);
-        descend_expr(node->right);
+        descend_expr(node->left, env);
+        descend_expr(node->right, env);
     }
 }
