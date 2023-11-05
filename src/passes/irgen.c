@@ -11,13 +11,15 @@ void convert_decs_to_quads(var_dec_t *dec, quad_program_t *quads);
 void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads);
 void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
 char* convert_expr_stack_to_quads(expr_stack_t*, quad_program_t*);
+
 char* new_symbol();
+char* lookup_sym(quad_program_t*, char*);
+
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
 quadr_t* generate_jump_target(char *label);
 quadr_t* generate_cmp_zero(char *sym);
 quadr_t* generate_jmp(quad_type_t jmp_type, char* jump_label);
-quadr_t* generate_nop_target(char *label);
-char* lookup_sym(quad_program_t*, char*);
+
 quad_op_t expr_to_quadop(exprval_t);
 
 void push(expr_stack_t *s, stack_item_t *item)
@@ -183,12 +185,14 @@ void debug_quads(quad_program_t *q)
     }
 }
 
-void convert_to_quads(program_t *program)
+quad_program_t* convert_to_quads(program_t *program)
 {
     quad_program_t *quads = new_quad_program();
     convert_blocks_to_quads(program->blocks, quads);
 
     debug_quads(quads);
+
+    return quads;
 }
 
 void convert_blocks_to_quads(block_t *block, quad_program_t *quads)

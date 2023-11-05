@@ -89,5 +89,5 @@ struct expr_stack {
     stack_item_t* (*pop)(expr_stack_t*);
 };
 
-void convert_to_quads(program_t*);
+quad_program_t* convert_to_quads(program_t*);
 #endif
