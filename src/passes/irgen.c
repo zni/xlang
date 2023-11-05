@@ -166,7 +166,7 @@ void debug_quads(quad_program_t *q)
             printf("\tGOTO\t%s\n", tmp->arg1.sym);
             break;
         case CALL__:
-            printf("CALL "); // TODO
+            printf("\tCALL\t%s\n", tmp->arg1.sym);
             break;
         case STORE__:
             if (tmp->arg1.t == CONSTANT) {
@@ -174,6 +174,9 @@ void debug_quads(quad_program_t *q)
             } else if (tmp->arg1.t == SYM) {
                 printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
             }
+            break;
+        case RETURN__:
+            printf("\tRETURN\n");
             break;
         }
         tmp = tmp->next;
@@ -192,13 +195,34 @@ void convert_blocks_to_quads(block_t *block, quad_program_t *quads)
 {
     while (block != NULL) {
         if (block->t == PROCEDURE) {
+            char *sub_label = new_symbol();
             env_data_t *data = malloc(sizeof(env_data_t));
             data->name = block->procedure.name;
             data->ir.orig = block->procedure.name;
-            data->ir.sym = new_symbol();
+            data->ir.sym = sub_label;
             add_entry(quads->env, block->procedure.name, data);
 
+            quadr_t *subroutine = malloc(sizeof(quadr_t));
+            subroutine->t = NOP;
+            subroutine->op = NOP__;
+            subroutine->label = sub_label;
+            subroutine->arg1.t = NONE;
+            subroutine->arg2.t = NONE;
+            subroutine->result.t = NONE;
+            quads->append_quad(quads, subroutine);
+
             convert_blocks_to_quads(block->procedure.context, quads);
+
+            quadr_t *rts = malloc(sizeof(quadr_t));
+            rts->t = PROC_;
+            rts->op = RETURN__;
+            rts->label = NULL;
+            rts->arg1.t = NONE;
+            rts->arg2.t = NONE;
+            rts->result.t = NONE;
+            quads->append_quad(quads, rts);
+            
+
         } else if (block->t == DECLARATION) {
             convert_decs_to_quads(block->decs, quads);
         } else if (block->t == STATEMENT) {
@@ -285,7 +309,16 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
     } else if (stmt->t == BEGIN_) {
         convert_stmts_to_quads(stmt->begin_.body, quads);
     } else if (stmt->t == CALL_) {
-        /* TODO */
+        quadr_t *call = malloc(sizeof(quadr_t));
+        call->t = PROC_;
+        call->op = CALL__;
+        call->label = NULL;
+        call->arg1.t = SYM;
+        call->arg1.sym = lookup_sym(quads, stmt->call_.var);
+        call->arg2.t = NONE;
+        call->result.t = NONE;
+        quads->append_quad(quads, call);
+
     }
     convert_stmts_to_quads(stmt->next, quads);
 }
