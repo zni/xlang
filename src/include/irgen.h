@@ -30,8 +30,20 @@ typedef enum quad_op {
 
 typedef enum quad_result {
     CONSTANT,
-    SYM
+    SYM,
+    REG,
+    NONE
 } quad_result_t;
+
+
+typedef struct quad_arg {
+    quad_result_t t;
+    union {
+        char *sym;
+        int constant;
+        unsigned short reg;
+    };
+} quad_arg_t;
 
 struct quad_;
 typedef struct quad_ quadr_t;
@@ -40,19 +52,9 @@ struct quad_ {
     quad_op_t op;
     char *label;
 
-    quad_result_t arg1_t;
-    union {
-        char *arg1_s;
-        int  arg1_d;
-    };
-
-    char *arg2;
-
-    quad_result_t res_t;
-    union {
-        char *result;
-        unsigned int value;
-    };
+    quad_arg_t arg1;
+    quad_arg_t arg2;
+    quad_arg_t result;
 
     quadr_t *next;
 };
