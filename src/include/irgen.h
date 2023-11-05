@@ -26,6 +26,7 @@ typedef enum quad_op {
     GOTO__,
     CMP__,
     NOP__,
+    RETURN__
 } quad_op_t;
 
 typedef enum quad_result {
