@@ -13,6 +13,8 @@ void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
 char* convert_expr_stack_to_quads(expr_stack_t*, quad_program_t*);
 char* new_symbol();
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
+char* lookup_sym(quad_program_t*, char*);
+quad_op_t expr_to_quadop(exprval_t);
 
 void push(expr_stack_t *s, stack_item_t *item)
 {
@@ -216,6 +218,7 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
     if (stmt == NULL) {
         return;
     } else if (stmt->t == ASSIGN_) {
+        char *sym = lookup_sym(quads, stmt->assign.var);
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->assign.value, stack);
         debug_stack(stack);
@@ -226,7 +229,7 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
         assign->arg1_t = SYM;
         assign->arg1_s = result_sym;
         assign->res_t = SYM;
-        assign->result = new_symbol();
+        assign->result = sym;
         quads->append_quad(quads, assign);
     } else if (stmt->t == IF_) {
         expr_stack_t *stack = new_stack();
@@ -292,11 +295,12 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
         q->result = sym;
         quads->append_quad(quads, q);
     } else if (op->t == IDENT_) {
+        char *varsym = lookup_sym(quads, op->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->op = STORE__;
         q->arg1_t = SYM;
-        q->arg1_s = op->ident;
+        q->arg1_s = varsym;
         q->arg2 = NULL;
         q->res_t = SYM;
         q->result = sym;
@@ -309,11 +313,12 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
 void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *backpatch, quad_program_t *quads)
 {
     if (expr->t == IDENT_) {
+        char *varsym = lookup_sym(quads, expr->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->op = STORE__;
         q->arg1_t = SYM;
-        q->arg1_s = expr->ident;
+        q->arg1_s = varsym;
         q->res_t = SYM;
         q->result = new_symbol();
         quads->append_quad(quads, q);
@@ -326,7 +331,8 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         q->res_t = SYM;
         q->result = new_symbol();
         quads->append_quad(quads, q);
-    } else if (expr->t == ADD) {
+    } else {
+        quad_op_t quad_type = expr_to_quadop(expr->t);
         stack_item_t *op1 = stack->pop(stack);
         stack_item_t *op2 = stack->pop(stack);
         char *result_sym = new_symbol();
@@ -334,7 +340,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
             resolve_destination(op2, stack, backpatch, quads);
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = BINARY;
-            q->op = ADD__;
+            q->op = quad_type;
             q->arg1_t = SYM;
             q->arg1_s = resolve_op(op1, quads);
             q->arg2 = (backpatch->pop(backpatch))->ident;
@@ -344,7 +350,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         } else {
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = BINARY;
-            q->op = ADD__;
+            q->op = quad_type;
             q->arg1_t = SYM;
             q->arg1_s = resolve_op(op1, quads);
             q->arg2 = resolve_op(op2, quads);
@@ -367,12 +373,13 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
     while (stack->next != NULL) {
         stack_item_t *top = stack->pop(stack);
         if (top->t == IDENT_) {
+            char *varsym = lookup_sym(quads, top->ident);
             result_sym = new_symbol();
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->op = STORE__;
             q->arg1_t = SYM;
-            q->arg1_s = top->ident;
+            q->arg1_s = varsym;
             q->res_t = SYM;
             q->result = result_sym;
             quads->append_quad(quads, q);
@@ -386,7 +393,8 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             q->res_t = SYM;
             q->result = result_sym;
             quads->append_quad(quads, q);
-        } else if (top->t == ADD) {
+        } else {
+            quad_op_t quad_type = expr_to_quadop(top->t);
             stack_item_t *op1 = stack->pop(stack);
             stack_item_t *op2 = stack->pop(stack);
             if (op2->t != IDENT_ && op2->t != DIGITS_) {
@@ -395,7 +403,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 result_sym = new_symbol();
                 quadr_t *q = malloc(sizeof(quadr_t));
                 q->t = BINARY;
-                q->op = ADD__;
+                q->op = quad_type;
                 q->arg1_t = SYM;
                 q->arg1_s = resolve_op(op1, quads);
                 q->arg2 = (backpatch->pop(backpatch))->ident;
@@ -406,7 +414,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 result_sym = new_symbol();
                 quadr_t *q = malloc(sizeof(quadr_t));
                 q->t = BINARY;
-                q->op = ADD__;
+                q->op = quad_type;
                 q->arg1_t = SYM;
                 q->arg1_s = resolve_op(op1, quads);
                 q->arg2 = resolve_op(op2, quads);
@@ -414,62 +422,6 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 q->result = result_sym;
                 quads->append_quad(quads, q);
             }
-        } else if (top->t == SUB) {
-            /* TODO */
-        } else if (top->t == MUL) {
-            /* TODO */
-        } else if (top->t == DIV) {
-            /* TODO */
-        } else if (top->t == LTE_) {
-            stack_item_t *op1 = stack->pop(stack);
-            stack_item_t *op2 = stack->pop(stack);
-            if (op2->t != IDENT_ && op2->t != DIGITS_) {
-                expr_stack_t *backpatch = new_stack();
-                resolve_destination(op2, stack, backpatch, quads);
-                result_sym = new_symbol();
-                quadr_t *q = generate_binary_expr_quad(
-                    LTE__,
-                    resolve_op(op1, quads),
-                    (backpatch->pop(backpatch))->ident,
-                    result_sym
-                );
-                quads->append_quad(quads, q);
-            } else {
-                result_sym = new_symbol();
-                quadr_t *q = generate_binary_expr_quad(
-                    LTE__,
-                    resolve_op(op1, quads),
-                    resolve_op(op2, quads),
-                    result_sym
-                );
-                quads->append_quad(quads, q);
-            }
-        } else if (top->t == GTE_) {
-            stack_item_t *op1 = stack->pop(stack);
-            stack_item_t *op2 = stack->pop(stack);
-            if (op2->t != IDENT_ && op2->t != DIGITS_) {
-                expr_stack_t *backpatch = new_stack();
-                resolve_destination(op2, stack, backpatch, quads);
-                result_sym = new_symbol();
-                quadr_t *q = generate_binary_expr_quad(
-                    GTE__,
-                    resolve_op(op1, quads),
-                    (backpatch->pop(backpatch))->ident,
-                    result_sym
-                );
-                quads->append_quad(quads, q);
-            } else {
-                result_sym = new_symbol();
-                quadr_t *q = generate_binary_expr_quad(
-                    GTE__,
-                    resolve_op(op1, quads),
-                    resolve_op(op2, quads),
-                    result_sym
-                );
-                quads->append_quad(quads, q);
-            }
-        } else if (top->t == EQ_) {
-            /* TODO */
         }
     }
 
@@ -492,43 +444,7 @@ void convert_expr_to_stack(expression_t *node, expr_stack_t *s)
         item->digits = node->digits;
         s->push(s, item);
         return;
-    } else if (node->t == ADD) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == SUB) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == MUL) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == DIV) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == LTE_) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == GTE_) {
-        convert_expr_to_stack(node->left, s);
-        convert_expr_to_stack(node->right, s);
-        stack_item_t *item = malloc(sizeof(stack_item_t));
-        item->t = node->t;
-        s->push(s, item);
-    } else if (node->t == EQ_) {
+    } else {
         convert_expr_to_stack(node->left, s);
         convert_expr_to_stack(node->right, s);
         stack_item_t *item = malloc(sizeof(stack_item_t));
@@ -558,4 +474,40 @@ quadr_t *generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     bin->result = result;
 
     return bin;
+}
+
+char* lookup_sym(quad_program_t *quads, char *key)
+{
+    env_data_t *var = lookup_entry(quads->env, key);
+    if (var == NULL) {
+        fprintf(stderr, "Failed to lookup symbol... Bailing out.\n");
+        exit(1);
+    }
+
+    return var->ir.sym;
+}
+
+quad_op_t expr_to_quadop(exprval_t t)
+{
+    switch (t) {
+    case ADD:
+        return ADD__;
+    case SUB:
+        return SUB__;
+    case MUL:
+        return MUL__;
+    case DIV:
+        return DIV__;
+    case LTE_:
+        return LTE__;
+    case GTE_:
+        return GTE__;
+    case EQ_:
+        return EQ__;
+
+    case IDENT_:
+    case DIGITS_:
+    default:
+        return -1;
+    }
 }
