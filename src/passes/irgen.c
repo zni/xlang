@@ -121,54 +121,58 @@ void debug_quads(quad_program_t *q)
     while (tmp != NULL) {
         switch (tmp->op) {
         case ADD__:
-            printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case SUB__:
-            printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case MUL__:
-            printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case DIV__:
-            printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case GTE__:
-            printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case LTE__:
-            printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case EQ__:
-            printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
             break;
         case CMP__:
             printf("\tCMP\t");
-            if (tmp->arg1_t == CONSTANT) {
-                printf("%d,\t", tmp->arg1_d);
+            if (tmp->arg1.t == CONSTANT) {
+                printf("%d,\t", tmp->arg1.constant);
             } else {
-                printf("%s,\t", tmp->arg1_s);
+                printf("%s,\t", tmp->arg1.sym);
             }
-            printf("%s,\t", tmp->arg2);
-            if (tmp->res_t == CONSTANT) {
-                printf("%d\n", tmp->value);
+            if (tmp->arg2.t == CONSTANT) {
+                printf("%d,\t", tmp->arg2.constant);
             } else {
-                printf("%s\n", tmp->result);
+                printf("%s,\t", tmp->arg2.sym);
+            }
+            if (tmp->result.t == CONSTANT) {
+                printf("%d\n", tmp->result.constant);
+            } else {
+                printf("%s\n", tmp->result.sym);
             }
             break;
         case NOP__:
             printf("%s:\tNOP\n", tmp->label);
             break;
         case GOTO__:
-            printf("\tGOTO\t%s\n", tmp->arg1_s);
+            printf("\tGOTO\t%s\n", tmp->arg1.sym);
             break;
         case CALL__:
             printf("CALL "); // TODO
             break;
         case STORE__:
-            if (tmp->arg1_t == CONSTANT) {
-                printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1_d, tmp->result);
-            } else if (tmp->arg1_t == SYM) {
-                printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1_s, tmp->result);
+            if (tmp->arg1.t == CONSTANT) {
+                printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1.constant, tmp->result.sym);
+            } else if (tmp->arg1.t == SYM) {
+                printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
             }
             break;
         }
@@ -231,10 +235,11 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
         assign->t = COPY;
         assign->label = NULL;
         assign->op = STORE__;
-        assign->arg1_t = SYM;
-        assign->arg1_s = result_sym;
-        assign->res_t = SYM;
-        assign->result = sym;
+        assign->arg1.t = SYM;
+        assign->arg1.sym = result_sym;
+        assign->arg2.t = NONE;
+        assign->result.t = SYM;
+        assign->result.sym = sym;
         quads->append_quad(quads, assign);
     } else if (stmt->t == IF_) {
         expr_stack_t *stack = new_stack();
@@ -293,11 +298,11 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1_t = CONSTANT;
-        q->arg1_d = op->digits;
-        q->arg2 = NULL;
-        q->res_t = SYM;
-        q->result = sym;
+        q->arg1.t = CONSTANT;
+        q->arg1.constant = op->digits;
+        q->arg2.t = NONE;
+        q->result.t = SYM;
+        q->result.sym = sym;
         quads->append_quad(quads, q);
     } else if (op->t == IDENT_) {
         char *varsym = lookup_sym(quads, op->ident);
@@ -305,11 +310,11 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1_t = SYM;
-        q->arg1_s = varsym;
-        q->arg2 = NULL;
-        q->res_t = SYM;
-        q->result = sym;
+        q->arg1.t = SYM;
+        q->arg1.sym = varsym;
+        q->arg2.t = NONE;
+        q->result.t = SYM;
+        q->result.sym = sym;
         quads->append_quad(quads, q);
     }
 
@@ -324,20 +329,22 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1_t = SYM;
-        q->arg1_s = varsym;
-        q->res_t = SYM;
-        q->result = new_symbol();
+        q->arg1.t = SYM;
+        q->arg1.sym = varsym;
+        q->arg2.t = NONE;
+        q->result.t = SYM;
+        q->result.sym = new_symbol();
         quads->append_quad(quads, q);
     } else if (expr->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1_t = CONSTANT;
-        q->arg1_d = expr->digits;
-        q->res_t = SYM;
-        q->result = new_symbol();
+        q->arg1.t = CONSTANT;
+        q->arg1.constant = expr->digits;
+        q->arg2.t = NONE;
+        q->result.t = SYM;
+        q->result.sym = new_symbol();
         quads->append_quad(quads, q);
     } else {
         quad_op_t quad_type = expr_to_quadop(expr->t);
@@ -346,26 +353,20 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         char *result_sym = new_symbol();
         if (op2->t != IDENT_ && op2->t != DIGITS_) {
             resolve_destination(op2, stack, backpatch, quads);
-            quadr_t *q = malloc(sizeof(quadr_t));
-            q->t = BINARY;
-            q->label = NULL;
-            q->op = quad_type;
-            q->arg1_t = SYM;
-            q->arg1_s = resolve_op(op1, quads);
-            q->arg2 = (backpatch->pop(backpatch))->ident;
-            q->res_t = SYM;
-            q->result = result_sym;
+            quadr_t *q = generate_binary_expr_quad(
+                quad_type,
+                resolve_op(op1, quads),
+                (backpatch->pop(backpatch))->ident,
+                result_sym
+            );
             quads->append_quad(quads, q);
         } else {
-            quadr_t *q = malloc(sizeof(quadr_t));
-            q->t = BINARY;
-            q->label = NULL;
-            q->op = quad_type;
-            q->arg1_t = SYM;
-            q->arg1_s = resolve_op(op1, quads);
-            q->arg2 = resolve_op(op2, quads);
-            q->res_t = SYM;
-            q->result = result_sym;
+            quadr_t *q = generate_binary_expr_quad(
+                quad_type,
+                resolve_op(op1, quads),
+                resolve_op(op2, quads),
+                result_sym
+            );
             quads->append_quad(quads, q);
         }
         stack_item_t *result = malloc(sizeof(stack_item_t));
@@ -389,10 +390,11 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             q->t = COPY;
             q->label = NULL;
             q->op = STORE__;
-            q->arg1_t = SYM;
-            q->arg1_s = varsym;
-            q->res_t = SYM;
-            q->result = result_sym;
+            q->arg1.t = SYM;
+            q->arg1.sym = varsym;
+            q->arg2.t = NONE;
+            q->result.t = SYM;
+            q->result.sym = result_sym;
             quads->append_quad(quads, q);
         } else if (top->t == DIGITS_) {
             result_sym = new_symbol();
@@ -400,10 +402,11 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             q->t = COPY;
             q->label = NULL;
             q->op = STORE__;
-            q->arg1_t = CONSTANT;
-            q->arg1_d = top->digits;
-            q->res_t = SYM;
-            q->result = result_sym;
+            q->arg1.t = CONSTANT;
+            q->arg1.constant = top->digits;
+            q->arg2.t = NONE;
+            q->result.t = SYM;
+            q->result.sym = result_sym;
             quads->append_quad(quads, q);
         } else {
             quad_op_t quad_type = expr_to_quadop(top->t);
@@ -413,27 +416,21 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 expr_stack_t *backpatch = new_stack();
                 resolve_destination(op2, stack, backpatch, quads);
                 result_sym = new_symbol();
-                quadr_t *q = malloc(sizeof(quadr_t));
-                q->t = BINARY;
-                q->label = NULL;
-                q->op = quad_type;
-                q->arg1_t = SYM;
-                q->arg1_s = resolve_op(op1, quads);
-                q->arg2 = (backpatch->pop(backpatch))->ident;
-                q->res_t = SYM;
-                q->result = result_sym;
+                quadr_t *q = generate_binary_expr_quad(
+                    quad_type,
+                    resolve_op(op1, quads),
+                    (backpatch->pop(backpatch))->ident,
+                    result_sym
+                );
                 quads->append_quad(quads, q);
             } else {
                 result_sym = new_symbol();
-                quadr_t *q = malloc(sizeof(quadr_t));
-                q->t = BINARY;
-                q->label = NULL;
-                q->op = quad_type;
-                q->arg1_t = SYM;
-                q->arg1_s = resolve_op(op1, quads);
-                q->arg2 = resolve_op(op2, quads);
-                q->res_t = SYM;
-                q->result = result_sym;
+                quadr_t *q = generate_binary_expr_quad(
+                    quad_type,
+                    resolve_op(op1, quads),
+                    resolve_op(op2, quads),
+                    result_sym
+                );
                 quads->append_quad(quads, q);
             }
         }
@@ -482,11 +479,12 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     bin->t = BINARY;
     bin->label = NULL;
     bin->op = op;
-    bin->arg1_t = SYM;
-    bin->arg1_s = arg1;
-    bin->arg2 = arg2;
-    bin->res_t = SYM;
-    bin->result = result;
+    bin->arg1.t = SYM;
+    bin->arg1.sym = arg1;
+    bin->arg2.t = SYM;
+    bin->arg2.sym = arg2;
+    bin->result.t = SYM;
+    bin->result.sym = result;
 
     return bin;
 }
@@ -497,11 +495,9 @@ quadr_t* generate_jump_target(char *label)
     jump_target->t = NOP;
     jump_target->label = label;
     jump_target->op = NOP__;
-    jump_target->arg1_t = SYM;
-    jump_target->arg1_s = NULL;
-    jump_target->arg2 = NULL;
-    jump_target->res_t = SYM;
-    jump_target->result = NULL;
+    jump_target->arg1.t = NONE;
+    jump_target->arg2.t = NONE;
+    jump_target->result.t = NONE;
 
     return jump_target;
 }
@@ -512,11 +508,12 @@ quadr_t* generate_cmp_zero(char *sym)
     cmp->t = BINARY;
     cmp->label = NULL;
     cmp->op = CMP__;
-    cmp->arg1_t = CONSTANT;
-    cmp->arg1_d = 0;
-    cmp->arg2 = sym;
-    cmp->res_t = SYM;
-    cmp->result = new_symbol();
+    cmp->arg1.t = CONSTANT;
+    cmp->arg1.constant = 0;
+    cmp->arg2.t = SYM;
+    cmp->arg2.sym = sym;
+    cmp->result.t = SYM;
+    cmp->result.sym = new_symbol();
     return cmp;
 }
 
@@ -526,11 +523,10 @@ quadr_t* generate_jmp(quad_type_t jmp_type, char *jump_label)
     branch->t = jmp_type;
     branch->label = NULL;
     branch->op = GOTO__;
-    branch->arg1_t = SYM;
-    branch->arg1_s = jump_label;
-    branch->arg2 = NULL;
-    branch->res_t = SYM;
-    branch->result = NULL;
+    branch->arg1.t = SYM;
+    branch->arg1.sym = jump_label;
+    branch->arg2.t = NONE;
+    branch->result.t = NONE;
     return branch;
 }
 
