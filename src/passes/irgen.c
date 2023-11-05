@@ -121,28 +121,28 @@ void debug_quads(quad_program_t *q)
     while (tmp != NULL) {
         switch (tmp->op) {
         case ADD__:
-            printf("ADD\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case SUB__:
-            printf("SUB\t%s, %s, %s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case MUL__:
-            printf("MUL\t%s, %s, %s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case DIV__:
-            printf("DIV\t%s, %s, %s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case GTE__:
-            printf("GTE\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case LTE__:
-            printf("LTE\t%s, %s, %s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case EQ__:
-            printf("EQ\t%s, %s, %s\n", tmp->arg1_s, tmp->arg2, tmp->result);
+            printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1_s, tmp->arg2, tmp->result);
             break;
         case CMP__:
-            printf("CMP\t");
+            printf("\tCMP\t");
             if (tmp->arg1_t == CONSTANT) {
                 printf("%d,\t", tmp->arg1_d);
             } else {
@@ -166,9 +166,9 @@ void debug_quads(quad_program_t *q)
             break;
         case STORE__:
             if (tmp->arg1_t == CONSTANT) {
-                printf("STORE\t%d,\t\t%s\n", tmp->arg1_d, tmp->result);
+                printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1_d, tmp->result);
             } else if (tmp->arg1_t == SYM) {
-                printf("STORE\t%s,\t\t%s\n", tmp->arg1_s, tmp->result);
+                printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1_s, tmp->result);
             }
             break;
         }
