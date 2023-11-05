@@ -13,6 +13,10 @@ void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
 char* convert_expr_stack_to_quads(expr_stack_t*, quad_program_t*);
 char* new_symbol();
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
+quadr_t* generate_jump_target(char *label);
+quadr_t* generate_cmp_zero(char *sym);
+quadr_t* generate_jmp(quad_type_t jmp_type, char* jump_label);
+quadr_t* generate_nop_target(char *label);
 char* lookup_sym(quad_program_t*, char*);
 quad_op_t expr_to_quadop(exprval_t);
 
@@ -225,6 +229,7 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
         char *result_sym = convert_expr_stack_to_quads(stack, quads);
         quadr_t *assign = malloc(sizeof(quadr_t));
         assign->t = COPY;
+        assign->label = NULL;
         assign->op = STORE__;
         assign->arg1_t = SYM;
         assign->arg1_s = result_sym;
@@ -235,44 +240,43 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->if_.cond, stack);
         char *result_sym = convert_expr_stack_to_quads(stack, quads);
-        quadr_t *cmp = malloc(sizeof(quadr_t));
-        cmp->t = BINARY;
-        cmp->op = CMP__;
-        cmp->arg1_t = CONSTANT;
-        cmp->arg1_d = 0;
-        cmp->arg2 = result_sym;
-        cmp->res_t = SYM;
-        cmp->result = new_symbol();
+
+        quadr_t *cmp = generate_cmp_zero(result_sym);
         quads->append_quad(quads, cmp);
         
         char *jump_label = new_symbol();
-        quadr_t *branch = malloc(sizeof(quadr_t));
-        branch->t = COND_JMP;
-        branch->op = GOTO__;
-        branch->arg1_t = SYM;
-        branch->arg1_s = jump_label;
-        branch->arg2 = NULL;
-        branch->res_t = SYM;
-        branch->result = NULL;
+        quadr_t *branch = generate_jmp(COND_JMP, jump_label);
         quads->append_quad(quads, branch);
 
         convert_stmts_to_quads(stmt->if_.body, quads);
 
-        quadr_t *jump_target = malloc(sizeof(quadr_t));
-        jump_target->t = NOP;
-        jump_target->label = jump_label;
-        jump_target->op = NOP__;
-        jump_target->arg1_t = SYM;
-        jump_target->arg1_s = NULL;
-        jump_target->arg2 = NULL;
-        jump_target->res_t = SYM;
-        jump_target->result = NULL;
+        quadr_t *jump_target = generate_jump_target(jump_label);
         quads->append_quad(quads, jump_target);
 
     } else if (stmt->t == WHILE_) {
+        char *backward_label = new_symbol();
+        quadr_t *backward_target = generate_jump_target(backward_label);
+        quads->append_quad(quads, backward_target);
+
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->while_.cond, stack);
+        char *result_sym = convert_expr_stack_to_quads(stack, quads);
+
+        quadr_t *cmp = generate_cmp_zero(result_sym);
+        quads->append_quad(quads, cmp);
+
+        char *forward_label = new_symbol();
+        quadr_t *forward_jmp = generate_jmp(COND_JMP, forward_label);
+        quads->append_quad(quads, forward_jmp);
+
         convert_stmts_to_quads(stmt->while_.body, quads);
+
+        quadr_t *backward_jmp = generate_jmp(UNCOND_JMP, backward_label);
+        quads->append_quad(quads, backward_jmp);
+
+        quadr_t *forward_target = generate_jump_target(forward_label);
+        quads->append_quad(quads, forward_target);
+
     } else if (stmt->t == BEGIN_) {
         convert_stmts_to_quads(stmt->begin_.body, quads);
     } else if (stmt->t == CALL_) {
@@ -287,6 +291,7 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
     if (op->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
+        q->label = NULL;
         q->op = STORE__;
         q->arg1_t = CONSTANT;
         q->arg1_d = op->digits;
@@ -298,6 +303,7 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
         char *varsym = lookup_sym(quads, op->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
+        q->label = NULL;
         q->op = STORE__;
         q->arg1_t = SYM;
         q->arg1_s = varsym;
@@ -316,6 +322,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         char *varsym = lookup_sym(quads, expr->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
+        q->label = NULL;
         q->op = STORE__;
         q->arg1_t = SYM;
         q->arg1_s = varsym;
@@ -325,6 +332,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
     } else if (expr->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
+        q->label = NULL;
         q->op = STORE__;
         q->arg1_t = CONSTANT;
         q->arg1_d = expr->digits;
@@ -340,6 +348,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
             resolve_destination(op2, stack, backpatch, quads);
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = BINARY;
+            q->label = NULL;
             q->op = quad_type;
             q->arg1_t = SYM;
             q->arg1_s = resolve_op(op1, quads);
@@ -350,6 +359,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         } else {
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = BINARY;
+            q->label = NULL;
             q->op = quad_type;
             q->arg1_t = SYM;
             q->arg1_s = resolve_op(op1, quads);
@@ -377,6 +387,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             result_sym = new_symbol();
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
+            q->label = NULL;
             q->op = STORE__;
             q->arg1_t = SYM;
             q->arg1_s = varsym;
@@ -387,6 +398,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             result_sym = new_symbol();
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
+            q->label = NULL;
             q->op = STORE__;
             q->arg1_t = CONSTANT;
             q->arg1_d = top->digits;
@@ -403,6 +415,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 result_sym = new_symbol();
                 quadr_t *q = malloc(sizeof(quadr_t));
                 q->t = BINARY;
+                q->label = NULL;
                 q->op = quad_type;
                 q->arg1_t = SYM;
                 q->arg1_s = resolve_op(op1, quads);
@@ -414,6 +427,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
                 result_sym = new_symbol();
                 quadr_t *q = malloc(sizeof(quadr_t));
                 q->t = BINARY;
+                q->label = NULL;
                 q->op = quad_type;
                 q->arg1_t = SYM;
                 q->arg1_s = resolve_op(op1, quads);
@@ -462,10 +476,11 @@ char* new_symbol()
     return sym;
 }
 
-quadr_t *generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result)
+quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result)
 {
     quadr_t *bin = malloc(sizeof(quadr_t));
     bin->t = BINARY;
+    bin->label = NULL;
     bin->op = op;
     bin->arg1_t = SYM;
     bin->arg1_s = arg1;
@@ -474,6 +489,49 @@ quadr_t *generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     bin->result = result;
 
     return bin;
+}
+
+quadr_t* generate_jump_target(char *label)
+{
+    quadr_t *jump_target = malloc(sizeof(quadr_t));
+    jump_target->t = NOP;
+    jump_target->label = label;
+    jump_target->op = NOP__;
+    jump_target->arg1_t = SYM;
+    jump_target->arg1_s = NULL;
+    jump_target->arg2 = NULL;
+    jump_target->res_t = SYM;
+    jump_target->result = NULL;
+
+    return jump_target;
+}
+
+quadr_t* generate_cmp_zero(char *sym)
+{
+    quadr_t *cmp = malloc(sizeof(quadr_t));
+    cmp->t = BINARY;
+    cmp->label = NULL;
+    cmp->op = CMP__;
+    cmp->arg1_t = CONSTANT;
+    cmp->arg1_d = 0;
+    cmp->arg2 = sym;
+    cmp->res_t = SYM;
+    cmp->result = new_symbol();
+    return cmp;
+}
+
+quadr_t* generate_jmp(quad_type_t jmp_type, char *jump_label)
+{
+    quadr_t *branch = malloc(sizeof(quadr_t));
+    branch->t = jmp_type;
+    branch->label = NULL;
+    branch->op = GOTO__;
+    branch->arg1_t = SYM;
+    branch->arg1_s = jump_label;
+    branch->arg2 = NULL;
+    branch->res_t = SYM;
+    branch->result = NULL;
+    return branch;
 }
 
 char* lookup_sym(quad_program_t *quads, char *key)
