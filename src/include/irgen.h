@@ -32,6 +32,7 @@ typedef enum quad_op {
 typedef enum quad_result {
     CONSTANT,
     SYM,
+    VARIABLE,
     REG,
     NONE
 } quad_result_t;
@@ -60,15 +61,16 @@ struct quad_ {
     quadr_t *next;
 };
 
-struct quad_program;
-typedef struct quad_program quad_program_t;
-struct quad_program {
-    quadr_t *program;
-    env_t *env;
+struct quadblock;
+typedef struct quadblock quadblock_t;
+struct quadblock {
+    quadr_t *lines;
+    quadblock_t *next;
 
-    void (*append_quad)(quad_program_t*, quadr_t*);
+    void (*append_block)(quadblock_t*, quadblock_t*);
+    void (*append_line)(quadblock_t*, quadr_t*);
 };
- 
+
 struct stack_item;
 typedef struct stack_item stack_item_t;
 struct stack_item {
@@ -89,5 +91,5 @@ struct expr_stack {
     stack_item_t* (*pop)(expr_stack_t*);
 };
 
-quad_program_t* convert_to_quads(program_t*);
+quadblock_t* convert_to_quads(program_t*);
 #endif

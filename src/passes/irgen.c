@@ -6,14 +6,14 @@
 
 unsigned int SYMBOL_INDEX = 0;
 
-void convert_blocks_to_quads(block_t *block, quad_program_t *quads);
-void convert_decs_to_quads(var_dec_t *dec, quad_program_t *quads);
-void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads);
+void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env);
+void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env);
+void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env);
 void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
-char* convert_expr_stack_to_quads(expr_stack_t*, quad_program_t*);
+char* convert_expr_stack_to_quads(expr_stack_t*, quadblock_t*, env_t *env);
 
 char* new_symbol();
-char* lookup_sym(quad_program_t*, char*);
+char* lookup_sym(env_t*, char*);
 
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
 quadr_t* generate_jump_target(char *label);
@@ -55,27 +55,43 @@ expr_stack_t* new_stack()
     return stack;
 }
 
-void append_quad(quad_program_t *q, quadr_t *quad)
+void append_block(quadblock_t *q, quadblock_t *qb)
 {
-    if (q->program == NULL) {
-        q->program = quad;
-        quad->next = NULL;
+    if (q->next == NULL) {
+        q->next = qb;
+        qb->next = NULL;
     } else {
-        quadr_t **tmp = &(q->program);
+        quadblock_t **tmp = &(q->next);
         while (*tmp != NULL)
             tmp = &(*tmp)->next;
 
-        *tmp = quad;
+        *tmp = qb;
     }
 }
 
-quad_program_t* new_quad_program()
+void append_line(quadblock_t *q, quadr_t *line)
 {
-    quad_program_t *quads = malloc(sizeof(quad_program_t));
-    quads->env = malloc(sizeof(env_t));
-    quads->program = NULL;
-    quads->append_quad = &append_quad;
-    return quads;
+    if (q->lines == NULL) {
+        q->lines = line;
+        line->next = NULL;
+    } else {
+        quadr_t **tmp = &(q->lines);
+        while (*tmp != NULL)
+            tmp = &(*tmp)->next;
+
+        *tmp = line;
+    }
+}
+
+quadblock_t* new_quadblock()
+{
+    quadblock_t *quadblock = malloc(sizeof(quadblock_t));
+    quadblock->next = NULL;
+
+    quadblock->append_block = &append_block;
+    quadblock->append_line = &append_line;
+
+    return quadblock;
 }
 
 void debug_stack(expr_stack_t *s)
@@ -117,94 +133,105 @@ void debug_stack(expr_stack_t *s)
     printf("====\n");
 }
 
-void debug_quads(quad_program_t *q)
+void debug_quads(quadblock_t *q)
 {
-    quadr_t *tmp = q->program;
-    while (tmp != NULL) {
-        switch (tmp->op) {
-        case ADD__:
-            printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case SUB__:
-            printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case MUL__:
-            printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case DIV__:
-            printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case GTE__:
-            printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case LTE__:
-            printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case EQ__:
-            printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
-            break;
-        case CMP__:
-            printf("\tCMP\t");
-            if (tmp->arg1.t == CONSTANT) {
-                printf("%d,\t", tmp->arg1.constant);
-            } else {
-                printf("%s,\t", tmp->arg1.sym);
+    quadblock_t *b = q->next;
+    while (b != NULL) {
+        printf("begin block\n");
+        printf("===========\n");
+        quadr_t *tmp = b->lines;
+        while (tmp != NULL) {
+            switch (tmp->op) {
+            case ADD__:
+                printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case SUB__:
+                printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case MUL__:
+                printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case DIV__:
+                printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case GTE__:
+                printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case LTE__:
+                printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case EQ__:
+                printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                break;
+            case CMP__:
+                printf("\tCMP\t");
+                if (tmp->arg1.t == CONSTANT) {
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->arg2.t == CONSTANT) {
+                    printf("%d,\t", tmp->arg2.constant);
+                } else {
+                    printf("%s,\t", tmp->arg2.sym);
+                }
+                if (tmp->result.t == CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    printf("%s\n", tmp->result.sym);
+                }
+                break;
+            case NOP__:
+                printf("%s:\tNOP\n", tmp->label);
+                break;
+            case GOTO__:
+                printf("\tGOTO\t%s\n", tmp->arg1.sym);
+                break;
+            case CALL__:
+                printf("\tCALL\t%s\n", tmp->arg1.sym);
+                break;
+            case STORE__:
+                if (tmp->arg1.t == CONSTANT) {
+                    printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1.constant, tmp->result.sym);
+                } else if (tmp->arg1.t == SYM) {
+                    printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
+                }
+                break;
+            case RETURN__:
+                printf("\tRETURN\n");
+                break;
             }
-            if (tmp->arg2.t == CONSTANT) {
-                printf("%d,\t", tmp->arg2.constant);
-            } else {
-                printf("%s,\t", tmp->arg2.sym);
-            }
-            if (tmp->result.t == CONSTANT) {
-                printf("%d\n", tmp->result.constant);
-            } else {
-                printf("%s\n", tmp->result.sym);
-            }
-            break;
-        case NOP__:
-            printf("%s:\tNOP\n", tmp->label);
-            break;
-        case GOTO__:
-            printf("\tGOTO\t%s\n", tmp->arg1.sym);
-            break;
-        case CALL__:
-            printf("\tCALL\t%s\n", tmp->arg1.sym);
-            break;
-        case STORE__:
-            if (tmp->arg1.t == CONSTANT) {
-                printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1.constant, tmp->result.sym);
-            } else if (tmp->arg1.t == SYM) {
-                printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
-            }
-            break;
-        case RETURN__:
-            printf("\tRETURN\n");
-            break;
+            tmp = tmp->next;
         }
-        tmp = tmp->next;
+        printf("===========.\n\n");
+        b = b->next;
     }
 }
 
-quad_program_t* convert_to_quads(program_t *program)
+quadblock_t* convert_to_quads(program_t *program)
 {
-    quad_program_t *quads = new_quad_program();
-    convert_blocks_to_quads(program->blocks, quads);
+    quadblock_t *quadblocks = new_quadblock();
+    env_t *env = malloc(sizeof(env_t));
+    convert_blocks_to_quads(program->blocks, quadblocks, env);
 
-    debug_quads(quads);
+    debug_quads(quadblocks);
 
-    return quads;
+    return quadblocks;
 }
 
-void convert_blocks_to_quads(block_t *block, quad_program_t *quads)
+
+void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
 {
     while (block != NULL) {
         if (block->t == PROCEDURE) {
+            quadblock_t *procblock = new_quadblock();
+
             char *sub_label = new_symbol();
             env_data_t *data = malloc(sizeof(env_data_t));
             data->name = block->procedure.name;
             data->ir.orig = block->procedure.name;
             data->ir.sym = sub_label;
-            add_entry(quads->env, block->procedure.name, data);
+            add_entry(env, block->procedure.name, data);
 
             quadr_t *subroutine = malloc(sizeof(quadr_t));
             subroutine->t = NOP;
@@ -213,9 +240,15 @@ void convert_blocks_to_quads(block_t *block, quad_program_t *quads)
             subroutine->arg1.t = NONE;
             subroutine->arg2.t = NONE;
             subroutine->result.t = NONE;
-            quads->append_quad(quads, subroutine);
+            procblock->append_line(procblock, subroutine);
 
-            convert_blocks_to_quads(block->procedure.context, quads);
+            block_t *ctx = block->procedure.context;
+            while (ctx != NULL) {
+                if (ctx->t == STATEMENT) {
+                    convert_stmts_to_quads(ctx->stmts, procblock, env);
+                }
+                ctx = ctx->next;
+            }
 
             quadr_t *rts = malloc(sizeof(quadr_t));
             rts->t = PROC_;
@@ -224,41 +257,42 @@ void convert_blocks_to_quads(block_t *block, quad_program_t *quads)
             rts->arg1.t = NONE;
             rts->arg2.t = NONE;
             rts->result.t = NONE;
-            quads->append_quad(quads, rts);
-            
-
+            procblock->append_line(procblock, rts);
+            quads->append_block(quads, procblock);
         } else if (block->t == DECLARATION) {
-            convert_decs_to_quads(block->decs, quads);
+            convert_decs_to_quads(block->decs, quads, env);
         } else if (block->t == STATEMENT) {
-            convert_stmts_to_quads(block->stmts, quads);
+            quadblock_t *stmtblock = new_quadblock();
+            convert_stmts_to_quads(block->stmts, stmtblock, env);
+            quads->append_block(quads, stmtblock);
         }
         block = block->next;
     }
 }
 
-void convert_decs_to_quads(var_dec_t *dec, quad_program_t *quads)
+void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env)
 {
     while (dec != NULL) {
         env_data_t *data = malloc(sizeof(env_data_t));
         data->name = dec->var;
         data->ir.orig = dec->var;
         data->ir.sym = new_symbol();
-        add_entry(quads->env, dec->var, data);
+        add_entry(env, dec->var, data);
 
         dec = dec->next;
     }
 }
 
-void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
+void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
 {
     if (stmt == NULL) {
         return;
     } else if (stmt->t == ASSIGN_) {
-        char *sym = lookup_sym(quads, stmt->assign.var);
+        char *sym = lookup_sym(env, stmt->assign.var);
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->assign.value, stack);
-        debug_stack(stack);
-        char *result_sym = convert_expr_stack_to_quads(stack, quads);
+        //debug_stack(stack);
+        char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
         quadr_t *assign = malloc(sizeof(quadr_t));
         assign->t = COPY;
         assign->label = NULL;
@@ -268,66 +302,66 @@ void convert_stmts_to_quads(statement_t *stmt, quad_program_t *quads)
         assign->arg2.t = NONE;
         assign->result.t = SYM;
         assign->result.sym = sym;
-        quads->append_quad(quads, assign);
+        quads->append_line(quads, assign);
     } else if (stmt->t == IF_) {
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->if_.cond, stack);
-        char *result_sym = convert_expr_stack_to_quads(stack, quads);
+        char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
 
         quadr_t *cmp = generate_cmp_zero(result_sym);
-        quads->append_quad(quads, cmp);
-        
+        quads->append_line(quads, cmp);
+
         char *jump_label = new_symbol();
         quadr_t *branch = generate_jmp(COND_JMP, jump_label);
-        quads->append_quad(quads, branch);
+        quads->append_line(quads, branch);
 
-        convert_stmts_to_quads(stmt->if_.body, quads);
+        convert_stmts_to_quads(stmt->if_.body, quads, env);
 
         quadr_t *jump_target = generate_jump_target(jump_label);
-        quads->append_quad(quads, jump_target);
+        quads->append_line(quads, jump_target);
 
     } else if (stmt->t == WHILE_) {
         char *backward_label = new_symbol();
         quadr_t *backward_target = generate_jump_target(backward_label);
-        quads->append_quad(quads, backward_target);
+        quads->append_line(quads, backward_target);
 
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->while_.cond, stack);
-        char *result_sym = convert_expr_stack_to_quads(stack, quads);
+        char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
 
         quadr_t *cmp = generate_cmp_zero(result_sym);
-        quads->append_quad(quads, cmp);
+        quads->append_line(quads, cmp);
 
         char *forward_label = new_symbol();
         quadr_t *forward_jmp = generate_jmp(COND_JMP, forward_label);
-        quads->append_quad(quads, forward_jmp);
+        quads->append_line(quads, forward_jmp);
 
-        convert_stmts_to_quads(stmt->while_.body, quads);
+        convert_stmts_to_quads(stmt->while_.body, quads, env);
 
         quadr_t *backward_jmp = generate_jmp(UNCOND_JMP, backward_label);
-        quads->append_quad(quads, backward_jmp);
+        quads->append_line(quads, backward_jmp);
 
         quadr_t *forward_target = generate_jump_target(forward_label);
-        quads->append_quad(quads, forward_target);
+        quads->append_line(quads, forward_target);
 
     } else if (stmt->t == BEGIN_) {
-        convert_stmts_to_quads(stmt->begin_.body, quads);
+        convert_stmts_to_quads(stmt->begin_.body, quads, env);
     } else if (stmt->t == CALL_) {
         quadr_t *call = malloc(sizeof(quadr_t));
         call->t = PROC_;
         call->op = CALL__;
         call->label = NULL;
         call->arg1.t = SYM;
-        call->arg1.sym = lookup_sym(quads, stmt->call_.var);
+        call->arg1.sym = lookup_sym(env, stmt->call_.var);
         call->arg2.t = NONE;
         call->result.t = NONE;
-        quads->append_quad(quads, call);
+        quads->append_line(quads, call);
 
     }
-    convert_stmts_to_quads(stmt->next, quads);
+    convert_stmts_to_quads(stmt->next, quads, env);
 }
 
-char* resolve_op(stack_item_t *op, quad_program_t *quads)
+char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
 {
     char *sym = new_symbol();
     if (op->t == DIGITS_) {
@@ -340,38 +374,38 @@ char* resolve_op(stack_item_t *op, quad_program_t *quads)
         q->arg2.t = NONE;
         q->result.t = SYM;
         q->result.sym = sym;
-        quads->append_quad(quads, q);
+        quads->append_line(quads, q);
     } else if (op->t == IDENT_) {
-        char *varsym = lookup_sym(quads, op->ident);
+        char *varsym = lookup_sym(env, op->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1.t = SYM;
+        q->arg1.t = VARIABLE;
         q->arg1.sym = varsym;
         q->arg2.t = NONE;
         q->result.t = SYM;
         q->result.sym = sym;
-        quads->append_quad(quads, q);
+        quads->append_line(quads, q);
     }
 
     return sym;
 }
 
-void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *backpatch, quad_program_t *quads)
+void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *backpatch, quadblock_t *quads, env_t *env)
 {
     if (expr->t == IDENT_) {
-        char *varsym = lookup_sym(quads, expr->ident);
+        char *varsym = lookup_sym(env, expr->ident);
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
         q->op = STORE__;
-        q->arg1.t = SYM;
+        q->arg1.t = VARIABLE;
         q->arg1.sym = varsym;
         q->arg2.t = NONE;
         q->result.t = SYM;
         q->result.sym = new_symbol();
-        quads->append_quad(quads, q);
+        quads->append_line(quads, q);
     } else if (expr->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
@@ -382,29 +416,29 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         q->arg2.t = NONE;
         q->result.t = SYM;
         q->result.sym = new_symbol();
-        quads->append_quad(quads, q);
+        quads->append_line(quads, q);
     } else {
         quad_op_t quad_type = expr_to_quadop(expr->t);
         stack_item_t *op1 = stack->pop(stack);
         stack_item_t *op2 = stack->pop(stack);
         char *result_sym = new_symbol();
         if (op2->t != IDENT_ && op2->t != DIGITS_) {
-            resolve_destination(op2, stack, backpatch, quads);
+            resolve_destination(op2, stack, backpatch, quads, env);
             quadr_t *q = generate_binary_expr_quad(
                 quad_type,
-                resolve_op(op1, quads),
+                resolve_op(op1, quads, env),
                 (backpatch->pop(backpatch))->ident,
                 result_sym
             );
-            quads->append_quad(quads, q);
+            quads->append_line(quads, q);
         } else {
             quadr_t *q = generate_binary_expr_quad(
                 quad_type,
-                resolve_op(op1, quads),
-                resolve_op(op2, quads),
+                resolve_op(op1, quads, env),
+                resolve_op(op2, quads, env),
                 result_sym
             );
-            quads->append_quad(quads, q);
+            quads->append_line(quads, q);
         }
         stack_item_t *result = malloc(sizeof(stack_item_t));
         result->t = IDENT_;
@@ -415,24 +449,24 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
 }
 
 
-char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
+char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t *env)
 {
     char *result_sym;
     while (stack->next != NULL) {
         stack_item_t *top = stack->pop(stack);
         if (top->t == IDENT_) {
-            char *varsym = lookup_sym(quads, top->ident);
+            char *varsym = lookup_sym(env, top->ident);
             result_sym = new_symbol();
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->label = NULL;
             q->op = STORE__;
-            q->arg1.t = SYM;
+            q->arg1.t = VARIABLE;
             q->arg1.sym = varsym;
             q->arg2.t = NONE;
             q->result.t = SYM;
             q->result.sym = result_sym;
-            quads->append_quad(quads, q);
+            quads->append_line(quads, q);
         } else if (top->t == DIGITS_) {
             result_sym = new_symbol();
             quadr_t *q = malloc(sizeof(quadr_t));
@@ -444,31 +478,31 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quad_program_t *quads)
             q->arg2.t = NONE;
             q->result.t = SYM;
             q->result.sym = result_sym;
-            quads->append_quad(quads, q);
+            quads->append_line(quads, q);
         } else {
             quad_op_t quad_type = expr_to_quadop(top->t);
             stack_item_t *op1 = stack->pop(stack);
             stack_item_t *op2 = stack->pop(stack);
             if (op2->t != IDENT_ && op2->t != DIGITS_) {
                 expr_stack_t *backpatch = new_stack();
-                resolve_destination(op2, stack, backpatch, quads);
+                resolve_destination(op2, stack, backpatch, quads, env);
                 result_sym = new_symbol();
                 quadr_t *q = generate_binary_expr_quad(
                     quad_type,
-                    resolve_op(op1, quads),
+                    resolve_op(op1, quads, env),
                     (backpatch->pop(backpatch))->ident,
                     result_sym
                 );
-                quads->append_quad(quads, q);
+                quads->append_line(quads, q);
             } else {
                 result_sym = new_symbol();
                 quadr_t *q = generate_binary_expr_quad(
                     quad_type,
-                    resolve_op(op1, quads),
-                    resolve_op(op2, quads),
+                    resolve_op(op1, quads, env),
+                    resolve_op(op2, quads, env),
                     result_sym
                 );
-                quads->append_quad(quads, q);
+                quads->append_line(quads, q);
             }
         }
     }
@@ -567,9 +601,9 @@ quadr_t* generate_jmp(quad_type_t jmp_type, char *jump_label)
     return branch;
 }
 
-char* lookup_sym(quad_program_t *quads, char *key)
+char* lookup_sym(env_t *env, char *key)
 {
-    env_data_t *var = lookup_entry(quads->env, key);
+    env_data_t *var = lookup_entry(env, key);
     if (var == NULL) {
         fprintf(stderr, "Failed to lookup symbol... Bailing out.\n");
         exit(1);
