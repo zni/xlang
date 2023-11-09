@@ -5,6 +5,10 @@
 
 #define SET_SIZE 100
 
+/*
+ * Register Allocation Structures
+ */
+
 struct interval;
 typedef struct interval interval_t;
 struct interval {
@@ -35,6 +39,53 @@ typedef struct register_pool {
     short pool[6];
     short index;
 } register_pool_t;
+
+/*
+ * Assembly Structures
+ */
+
+typedef enum asm_op {
+    ASM_MOV,
+    ASM_ADD,
+    ASM_CMP,
+    ASM_JMP,
+    ASM_BEQ,
+    ASM_HALT
+} asm_op_t;
+
+typedef enum asm_arg {
+    ASM_MEMORY,
+    ASM_REGISTER,
+    ASM_NONE
+} asm_arg_t;
+
+typedef struct asm_operand {
+    asm_arg_t t;
+    union {
+        char *memory;
+        short reg;
+    };
+} asm_operand_t;
+
+typedef char* asm_label_t;
+
+struct assembly;
+typedef struct assembly assembly_t;
+struct assembly {
+    asm_label_t label;
+    asm_op_t op;
+    asm_operand_t operand1;
+    asm_operand_t operand2;
+
+    assembly_t *next;
+};
+
+struct assembly_block;
+typedef struct assembly_block assembly_block_t;
+struct assembly_block {
+    assembly_t *code;
+    unsigned int instruction_count;
+};
 
 void generate_code(quadblock_t*, env_t*);
 
