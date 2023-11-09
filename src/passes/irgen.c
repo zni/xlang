@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,12 +13,12 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env);
 void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
 char* convert_expr_stack_to_quads(expr_stack_t*, quadblock_t*, env_t *env);
 
-char* new_symbol();
+char* new_symbol(env_t*, bool);
 char* lookup_sym(env_t*, char*);
 
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
 quadr_t* generate_jump_target(char *label);
-quadr_t* generate_cmp_zero(char *sym);
+quadr_t* generate_cmp_zero(char *sym, env_t *env);
 quadr_t* generate_jmp(quad_type_t jmp_type, char* jump_label);
 
 quad_op_t expr_to_quadop(exprval_t);
@@ -208,14 +209,11 @@ void debug_quads(quadblock_t *q)
     }
 }
 
-quadblock_t* convert_to_quads(program_t *program)
+quadblock_t* convert_to_quads(program_t *program, env_t *env)
 {
     quadblock_t *quadblocks = new_quadblock();
-    env_t *env = malloc(sizeof(env_t));
     convert_blocks_to_quads(program->blocks, quadblocks, env);
-
     debug_quads(quadblocks);
-
     return quadblocks;
 }
 
@@ -226,11 +224,12 @@ void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
         if (block->t == PROCEDURE) {
             quadblock_t *procblock = new_quadblock();
 
-            char *sub_label = new_symbol();
+            char *sub_label = new_symbol(env, false);
             env_data_t *data = malloc(sizeof(env_data_t));
             data->name = block->procedure.name;
             data->ir.orig = block->procedure.name;
             data->ir.sym = sub_label;
+            data->ir.t = FUNCTION;
             add_entry(env, block->procedure.name, data);
 
             quadr_t *subroutine = malloc(sizeof(quadr_t));
@@ -276,7 +275,8 @@ void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env)
         env_data_t *data = malloc(sizeof(env_data_t));
         data->name = dec->var;
         data->ir.orig = dec->var;
-        data->ir.sym = new_symbol();
+        data->ir.sym = new_symbol(env, false);
+        data->ir.t = VARIABLE_NAME;
         add_entry(env, dec->var, data);
 
         dec = dec->next;
@@ -308,10 +308,10 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         convert_expr_to_stack(stmt->if_.cond, stack);
         char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
 
-        quadr_t *cmp = generate_cmp_zero(result_sym);
+        quadr_t *cmp = generate_cmp_zero(result_sym, env);
         quads->append_line(quads, cmp);
 
-        char *jump_label = new_symbol();
+        char *jump_label = new_symbol(env, false);
         quadr_t *branch = generate_jmp(COND_JMP, jump_label);
         quads->append_line(quads, branch);
 
@@ -321,7 +321,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         quads->append_line(quads, jump_target);
 
     } else if (stmt->t == WHILE_) {
-        char *backward_label = new_symbol();
+        char *backward_label = new_symbol(env, false);
         quadr_t *backward_target = generate_jump_target(backward_label);
         quads->append_line(quads, backward_target);
 
@@ -329,10 +329,10 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         convert_expr_to_stack(stmt->while_.cond, stack);
         char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
 
-        quadr_t *cmp = generate_cmp_zero(result_sym);
+        quadr_t *cmp = generate_cmp_zero(result_sym, env);
         quads->append_line(quads, cmp);
 
-        char *forward_label = new_symbol();
+        char *forward_label = new_symbol(env, false);
         quadr_t *forward_jmp = generate_jmp(COND_JMP, forward_label);
         quads->append_line(quads, forward_jmp);
 
@@ -363,7 +363,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
 
 char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
 {
-    char *sym = new_symbol();
+    char *sym = new_symbol(env, true);
     if (op->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
@@ -404,7 +404,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         q->arg1.sym = varsym;
         q->arg2.t = NONE;
         q->result.t = SYM;
-        q->result.sym = new_symbol();
+        q->result.sym = new_symbol(env, true);
         quads->append_line(quads, q);
     } else if (expr->t == DIGITS_) {
         quadr_t *q = malloc(sizeof(quadr_t));
@@ -415,13 +415,13 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         q->arg1.constant = expr->digits;
         q->arg2.t = NONE;
         q->result.t = SYM;
-        q->result.sym = new_symbol();
+        q->result.sym = new_symbol(env, true);
         quads->append_line(quads, q);
     } else {
         quad_op_t quad_type = expr_to_quadop(expr->t);
         stack_item_t *op1 = stack->pop(stack);
         stack_item_t *op2 = stack->pop(stack);
-        char *result_sym = new_symbol();
+        char *result_sym = new_symbol(env, true);
         if (op2->t != IDENT_ && op2->t != DIGITS_) {
             resolve_destination(op2, stack, backpatch, quads, env);
             quadr_t *q = generate_binary_expr_quad(
@@ -456,7 +456,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
         stack_item_t *top = stack->pop(stack);
         if (top->t == IDENT_) {
             char *varsym = lookup_sym(env, top->ident);
-            result_sym = new_symbol();
+            result_sym = new_symbol(env, true);
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->label = NULL;
@@ -468,7 +468,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
             q->result.sym = result_sym;
             quads->append_line(quads, q);
         } else if (top->t == DIGITS_) {
-            result_sym = new_symbol();
+            result_sym = new_symbol(env, true);
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->label = NULL;
@@ -486,7 +486,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
             if (op2->t != IDENT_ && op2->t != DIGITS_) {
                 expr_stack_t *backpatch = new_stack();
                 resolve_destination(op2, stack, backpatch, quads, env);
-                result_sym = new_symbol();
+                result_sym = new_symbol(env, true);
                 quadr_t *q = generate_binary_expr_quad(
                     quad_type,
                     resolve_op(op1, quads, env),
@@ -495,7 +495,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
                 );
                 quads->append_line(quads, q);
             } else {
-                result_sym = new_symbol();
+                result_sym = new_symbol(env, true);
                 quadr_t *q = generate_binary_expr_quad(
                     quad_type,
                     resolve_op(op1, quads, env),
@@ -535,11 +535,21 @@ void convert_expr_to_stack(expression_t *node, expr_stack_t *s)
     }
 }
 
-char* new_symbol()
+char* new_symbol(env_t *env, bool update_env)
 {
     char *sym = malloc(sizeof(char) * 8);
     sprintf(sym, "s%03u", SYMBOL_INDEX);
     SYMBOL_INDEX++;
+
+    if (!update_env)
+        return sym;
+
+    env_data_t *data = malloc(sizeof(env_data_t));
+    data->name = sym;
+    data->ir.orig = sym;
+    data->ir.sym = sym;
+    data->ir.t = SYMBOLIC;
+    add_entry(env, sym, data);
 
     return sym;
 }
@@ -573,7 +583,7 @@ quadr_t* generate_jump_target(char *label)
     return jump_target;
 }
 
-quadr_t* generate_cmp_zero(char *sym)
+quadr_t* generate_cmp_zero(char *sym, env_t *env)
 {
     quadr_t *cmp = malloc(sizeof(quadr_t));
     cmp->t = BINARY;
@@ -584,7 +594,7 @@ quadr_t* generate_cmp_zero(char *sym)
     cmp->arg2.t = SYM;
     cmp->arg2.sym = sym;
     cmp->result.t = SYM;
-    cmp->result.sym = new_symbol();
+    cmp->result.sym = new_symbol(env, true);
     return cmp;
 }
 

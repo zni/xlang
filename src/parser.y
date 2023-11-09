@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ast.h"
+#include "codegen.h"
+#include "env.h"
 #include "irgen.h"
 #include "semantics.h"
 
@@ -118,7 +120,7 @@ declaration:
 ;
 
 statement:
-    IF expression THEN statement { 
+    IF expression THEN statement {
         statement_t *if_ = malloc(sizeof(statement_t));
         if_->t = IF_;
         if_->if_.cond = $2;
@@ -126,7 +128,7 @@ statement:
         if_->next = NULL;
         $$ = if_;
     }
-|   IDENT ASSIGN expression { 
+|   IDENT ASSIGN expression {
         statement_t *assign = malloc(sizeof(statement_t));
         assign->t = ASSIGN_;
         assign->assign.var = $1;
@@ -257,7 +259,10 @@ int main(int argc, char **argv)
 
 
     semantic_analysis(root);
-    convert_to_quads(root);
+    env_t env;
+    init_env(&env);
+    quadblock_t *blocks = convert_to_quads(root, &env);
+    generate_code(blocks, &env);
 }
 
 void yyerror(program_t *root, const char *s) {

@@ -3,14 +3,24 @@
 
 #define ENV_SIZE 100
 
+#define UNINITIALIZED -1
+#define SPILL -2
+
+typedef enum env_data_type {
+    FUNCTION,
+    SYMBOLIC,
+    VARIABLE_NAME
+} env_data_type_t;
+
 struct env_data;
 typedef struct env_data env_data_t;
 struct env_data {
     char *name;
     struct ir_ {
+        env_data_type_t t;
         char *orig;
         char *sym;
-        unsigned short reg;
+        short reg;
     } ir;
     env_data_t *next;
 };
@@ -19,6 +29,8 @@ typedef struct env {
     env_data_t *dict[ENV_SIZE];
 } env_t;
 #endif
+
+unsigned long hash(char *s);
 
 void init_env(env_t *env);
 
