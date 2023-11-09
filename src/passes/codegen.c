@@ -359,6 +359,7 @@ void add_interval(interval_list_t *list, unsigned short lower, unsigned short up
         }
 
         *next = interval;
+        (*next)->next = NULL;
         list->count += 1;
     }
 }
@@ -369,9 +370,10 @@ void remove_interval(interval_list_t *list, char *sym)
         return;
     }
 
+    interval_t *tmp;
     interval_t **c = &(list->list);
     if (strcmp(sym, (*c)->sym) == 0) {
-        interval_t *tmp = *c;
+        tmp = *c;
         if (list->count > 1) {
             list->list = list->list->next;
         } else {
@@ -388,9 +390,10 @@ void remove_interval(interval_list_t *list, char *sym)
         p = &(*c);
         c = &(*c)->next;
         if (strcmp(sym, (*c)->sym) == 0) {
-            p = &(*c)->next;
-            free(*c);
-            *c = NULL;
+            (*p)->next = (*c)->next;
+            tmp = *c;
+            free(tmp);
+            tmp = NULL;
             list->count--;
             return;
         }
