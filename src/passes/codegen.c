@@ -14,21 +14,17 @@ assembly_t* generate_ADD(quadr_t*, env_t*);
 assembly_t* generate_SUB(quadr_t*, env_t*);
 assembly_t* generate_MUL(quadr_t*, env_t*);
 assembly_t* generate_DIV(quadr_t*, env_t*);
-
 assembly_t* generate_BR(quadr_t*, env_t*);
 assembly_t* generate_BGE(quadr_t*, env_t*);
 assembly_t* generate_BLE(quadr_t*, env_t*);
 assembly_t* generate_BEQ(quadr_t*, env_t*);
 assembly_t* generate_CMP(quadr_t*, env_t*);
 assembly_t* generate_NOP(quadr_t*, env_t*);
-
-/*
 assembly_t* generate_JSR(quadr_t*, env_t*);
-assembly_t* generate_JMP(quadr_t*, env_t*);
 assembly_t* generate_RTS(quadr_t*, env_t*);
-*/
-
 assembly_t* generate_HALT();
+void remove_nops(assembly_block_t*);
+
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
 interval_list_t* calculate_liveness_intervals(quadblock_t*, env_t*);
@@ -131,6 +127,12 @@ void print_assembly(assembly_t *code)
         case ASM_HALT:
             printf("HALT");
             break;
+        case ASM_JSR:
+            printf("JSR");
+            break;
+        case ASM_RTS:
+            printf("RTS");
+            break;
         default:
             printf("XXX");
     }
@@ -146,7 +148,11 @@ void print_assembly(assembly_t *code)
             printf(" %s", code->operand1.memory);
             break;
         case ASM_REGISTER:
-            printf(" R%d", code->operand1.reg);
+            if (code->operand1.reg == 7) {
+                printf(" PC");
+            } else {
+                printf(" R%d", code->operand1.reg);
+            }
             break;
     }
 
@@ -161,7 +167,11 @@ void print_assembly(assembly_t *code)
             printf(", %s", code->operand2.memory);
             break;
         case ASM_REGISTER:
-            printf(", R%d", code->operand2.reg);
+            if (code->operand2.reg == 7) {
+                printf(", PC");
+            } else {
+                printf(", R%d", code->operand2.reg);
+            }
             break;
     }
     putchar('\n');
@@ -207,13 +217,19 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
             case Q_NOP:
                 code = generate_NOP(line, env);
                 break;
+            case Q_CALL:
+                code = generate_JSR(line, env);
+                break;
+            case Q_RETURN:
+                code = generate_RTS(line, env);
+                break;
             default:
                 continue;
         }
         line = line->next;
         append_assembly(codeblock, code);
     }
-
+    remove_nops(codeblock);
     return codeblock;
 }
 
@@ -390,6 +406,32 @@ assembly_t *generate_NOP(quadr_t *line, env_t *env)
     return nop;
 }
 
+assembly_t *generate_JSR(quadr_t *line, env_t *env)
+{
+    assembly_t *jsr = malloc(sizeof(assembly_t));
+    jsr->next = NULL;
+
+    jsr->op = ASM_JSR;
+    jsr->label = line->label;
+    jsr->operand1.t = ASM_REGISTER;
+    jsr->operand1.reg = 7;
+    populate_operand(&line->arg1, &jsr->operand2, env);
+    return jsr;
+}
+
+assembly_t *generate_RTS(quadr_t *line, env_t *env)
+{
+    assembly_t *rts = malloc(sizeof(assembly_t));
+    rts->next = NULL;
+
+    rts->op = ASM_RTS;
+    rts->label = line->label;
+    rts->operand1.t = ASM_REGISTER;
+    rts->operand1.reg = 7;
+    populate_operand(&line->arg2, &rts->operand2, env);
+    return rts;
+}
+
 assembly_t* generate_HALT()
 {
     assembly_t *halt = malloc(sizeof(assembly_t));
@@ -399,6 +441,43 @@ assembly_t* generate_HALT()
     halt->operand1.t = ASM_NONE;
     halt->operand2.t = ASM_NONE;
     return halt;
+}
+
+// A naive NOP remover.
+// TODO Take into account sliding a label over another label.
+void remove_nops(assembly_block_t *block)
+{
+    assembly_t *prev    = block->code;
+    assembly_t *current = block->code;
+    char *label;
+    while (current != NULL) {
+        // We're at the head, slide forward.
+        if (current == (block->code) && current->op == ASM_NOP) {
+            label = current->label;
+            if (current->next != NULL) {
+                block->code = current->next;
+                current->next->label = label;
+                block->instruction_count--;
+            }
+
+        // We're somewhere in the middle, slide forward.
+        } else if (current->op == ASM_NOP && current->next != NULL) {
+            label = current->label;
+            prev->next = current->next;
+            current->next->label = label;
+            block->instruction_count--;
+
+        // If we have nowhere to go, convert to HALT.
+        // Since the only block ending with a NOP and
+        // with nowhere to go is the main block.
+        } else if (current->op == ASM_NOP && current->next == NULL) {
+            current->op = ASM_HALT;
+        }
+
+        prev = current;
+        current = current->next;
+
+    }
 }
 
 void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
@@ -835,7 +914,7 @@ assembly_block_t* new_assembly_block()
 
 void append_assembly_block(assembly_block_t *block_head, assembly_block_t *b)
 {
-    assembly_block_t **next = &(b->next);
+    assembly_block_t **next = &(block_head->next);
     while (*next != NULL)
         next = &(*next)->next;
     *next = b;

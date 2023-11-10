@@ -57,6 +57,8 @@ typedef enum asm_op {
     ASM_BLE,
     ASM_BNE,
     ASM_BR,
+    ASM_JSR,
+    ASM_RTS,
     ASM_HALT,
     ASM_NOP
 } asm_op_t;
