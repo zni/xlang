@@ -365,7 +365,6 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         char *sym = lookup_sym(env, stmt->assign.var);
         expr_stack_t *stack = new_stack();
         convert_expr_to_stack(stmt->assign.value, stack);
-        //debug_stack(stack);
         char *result_sym = convert_expr_stack_to_quads(stack, quads, env);
         quadr_t *assign = malloc(sizeof(quadr_t));
         assign->t = QT_COPY;
@@ -373,6 +372,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         assign->op = Q_STORE;
         assign->arg1.t = Q_SYMBOLIC;
         assign->arg1.sym = result_sym;
+        assign->arg1.register_priority = 0;
         assign->arg2.t = Q_NONE;
         assign->result.t = Q_VARIABLE;
         assign->result.sym = sym;
@@ -425,12 +425,11 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         call->t = QT_PROCEDURE;
         call->op = Q_CALL;
         call->label = NULL;
-        call->arg1.t = Q_SYMBOLIC;
+        call->arg1.t = Q_VARIABLE;
         call->arg1.sym = lookup_sym(env, stmt->call_.var);
         call->arg2.t = Q_NONE;
         call->result.t = Q_NONE;
         quads->append_line(quads, call);
-
     }
     convert_stmts_to_quads(stmt->next, quads, env);
 }
@@ -447,6 +446,7 @@ char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
         q->arg1.constant = op->digits;
         q->arg2.t = Q_NONE;
         q->result.t = Q_SYMBOLIC;
+        q->result.register_priority = 0;
         q->result.sym = sym;
         quads->append_line(quads, q);
     } else if (op->t == IDENT_) {
@@ -459,6 +459,7 @@ char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
         q->arg1.sym = varsym;
         q->arg2.t = Q_NONE;
         q->result.t = Q_SYMBOLIC;
+        q->result.register_priority = 0;
         q->result.sym = sym;
         quads->append_line(quads, q);
     }
@@ -481,6 +482,7 @@ char* resolve_destination(expr_stack_t *stack, expr_stack_t *backpatch, quadbloc
         q->arg2.t = Q_NONE;
         q->result.t = Q_SYMBOLIC;
         result_sym = new_symbol(env, true);
+        q->result.register_priority = 0;
         q->result.sym = result_sym;
         quads->append_line(quads, q);
     } else if (expr->t == DIGITS_) {
@@ -492,6 +494,7 @@ char* resolve_destination(expr_stack_t *stack, expr_stack_t *backpatch, quadbloc
         q->arg1.constant = expr->digits;
         q->arg2.t = Q_NONE;
         q->result.t = Q_SYMBOLIC;
+        q->result.register_priority = 0;
         result_sym = new_symbol(env, true);
         q->result.sym = result_sym;
         quads->append_line(quads, q);
@@ -590,6 +593,19 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     switch (op) {
         case Q_ADD:
         case Q_SUB:
+            bin->t = QT_BINARY;
+            bin->label = NULL;
+            bin->op = op;
+            bin->arg1.t = Q_SYMBOLIC;
+            bin->arg1.sym = arg1;
+            bin->arg1.register_priority = 0;
+            bin->arg2.t = Q_SYMBOLIC;
+            bin->arg2.sym = arg2;
+            bin->arg2.register_priority = 0;
+            bin->result.t = Q_SYMBOLIC;
+            bin->result.sym = result;
+            bin->result.register_priority = 0;
+            return bin;
         case Q_MUL:
         case Q_DIV:
             bin->t = QT_BINARY;
@@ -597,10 +613,13 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
             bin->op = op;
             bin->arg1.t = Q_SYMBOLIC;
             bin->arg1.sym = arg1;
+            bin->arg1.register_priority = 1;
             bin->arg2.t = Q_SYMBOLIC;
             bin->arg2.sym = arg2;
+            bin->arg2.register_priority = 0;
             bin->result.t = Q_SYMBOLIC;
             bin->result.sym = result;
+            bin->result.register_priority = 0;
             return bin;
         default:
             break;
@@ -633,10 +652,13 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     bin->op = Q_CMP;
     bin->arg1.t = Q_SYMBOLIC;
     bin->arg1.sym = arg1;
+    bin->arg1.register_priority = 0;
     bin->arg2.t = Q_SYMBOLIC;
     bin->arg2.sym = arg2;
+    bin->arg2.register_priority = 0;
     bin->result.t = Q_SYMBOLIC;
     bin->result.sym = result;
+    bin->result.register_priority = 0;
 
     char *true_label = new_symbol(env, true);
     quadr_t *cond_jmp = malloc(sizeof(quadr_t));
@@ -659,6 +681,7 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     mov0->arg2.t = Q_NONE;
     mov0->result.t = Q_SYMBOLIC;
     mov0->result.sym = result;
+    mov0->result.register_priority = 0;
 
     cond_jmp->next = mov0;
 
@@ -683,6 +706,7 @@ quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *r
     mov1->arg2.t = Q_NONE;
     mov1->result.t = Q_SYMBOLIC;
     mov1->result.sym = result;
+    mov1->result.register_priority = 0;
 
     jmp->next = mov1;
 
@@ -721,8 +745,10 @@ quadr_t* generate_cmp_zero(char *sym, env_t *env)
     cmp->arg1.t = Q_CONSTANT;
     cmp->arg1.constant = 0;
     cmp->arg2.t = Q_SYMBOLIC;
+    cmp->arg2.register_priority = 0;
     cmp->arg2.sym = sym;
     cmp->result.t = Q_SYMBOLIC;
+    cmp->result.register_priority = 0;
     cmp->result.sym = new_symbol(env, true);
     return cmp;
 }

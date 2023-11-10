@@ -50,6 +50,7 @@ typedef struct quad_arg {
         int constant;
         unsigned short reg;
     };
+    int register_priority;
 } quad_arg_t;
 
 struct quad_;

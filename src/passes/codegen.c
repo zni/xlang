@@ -642,9 +642,6 @@ void expire_old_intervals(interval_t *interval, interval_list_t **active, env_t 
 
     interval_list_t *endtimes = *active;
     sort_by_upper(&endtimes);
-    debug_lifetimes(endtimes);
-    printf("sorted by upper\n");
-    //printf("%s => %p\n", __FUNCTION__, active);
     interval_t *end = endtimes->list;
     for (int i = 0; i < endtimes->count; i++) {
         if (end->upper >= interval->lower) {
@@ -654,14 +651,9 @@ void expire_old_intervals(interval_t *interval, interval_list_t **active, env_t 
     }
 
     sort_by_lower(active);
-    debug_lifetimes(endtimes);
-    printf("sorted by lower\n");
-    //printf("%s => lower(%p)\n", __FUNCTION__, active);
     char *sym = end->sym;
     remove_interval(active, end->sym);
-    //printf("%s => remove(%p)\n", __FUNCTION__, active);
     env_data_t *d = lookup_entry(env, sym);
-    //printf("%s => lookup(%p)\n", __FUNCTION__, active);
     add_register(pool, d->ir.reg);
     endtimes = NULL;
 }
@@ -753,8 +745,8 @@ void remove_interval(interval_list_t **list, char *sym)
         } else {
             (*list)->list = NULL;
         }
-        //free(tmp);
-        //tmp = NULL;
+        free(tmp);
+        tmp = NULL;
         (*list)->count--;
         return;
     }
@@ -766,8 +758,8 @@ void remove_interval(interval_list_t **list, char *sym)
         if (strcmp(sym, (*c)->sym) == 0) {
             (*p)->next = (*c)->next;
             tmp = *c;
-            //free(tmp);
-            //tmp = NULL;
+            free(tmp);
+            tmp = NULL;
             (*list)->count--;
             return;
         }
