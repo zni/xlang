@@ -19,8 +19,12 @@ typedef enum quad_op {
     Q_MUL,
     Q_DIV,
     Q_GTE,
+    Q_BGE,
     Q_LTE,
+    Q_BLE,
     Q_EQ,
+    Q_BEQ,
+    Q_BR,
     Q_CALL,
     Q_STORE,
     Q_GOTO,
@@ -31,6 +35,7 @@ typedef enum quad_op {
 
 typedef enum quad_result {
     Q_CONSTANT,
+    Q_LABEL,
     Q_SYMBOLIC,
     Q_VARIABLE,
     Q_REGISTER,

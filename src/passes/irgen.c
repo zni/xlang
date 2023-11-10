@@ -16,10 +16,10 @@ char* convert_expr_stack_to_quads(expr_stack_t*, quadblock_t*, env_t *env);
 char* new_symbol(env_t*, bool);
 char* lookup_sym(env_t*, char*);
 
-quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result);
+quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result, env_t *env);
 quadr_t* generate_jump_target(char *label);
 quadr_t* generate_cmp_zero(char *sym, env_t *env);
-quadr_t* generate_jmp(quad_type_t jmp_type, char* jump_label);
+quadr_t* generate_jmp(quad_type_t jmp_type, quad_op_t jmp_op, char* jump_label);
 
 quad_op_t expr_to_quadop(exprval_t);
 
@@ -213,7 +213,7 @@ quadblock_t* convert_to_quads(program_t *program, env_t *env)
 {
     quadblock_t *quadblocks = new_quadblock();
     convert_blocks_to_quads(program->blocks, quadblocks, env);
-    debug_quads(quadblocks);
+    //debug_quads(quadblocks);
     return quadblocks;
 }
 
@@ -312,7 +312,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         quads->append_line(quads, cmp);
 
         char *jump_label = new_symbol(env, false);
-        quadr_t *branch = generate_jmp(QT_COND_JMP, jump_label);
+        quadr_t *branch = generate_jmp(QT_COND_JMP, Q_BEQ, jump_label);
         quads->append_line(quads, branch);
 
         convert_stmts_to_quads(stmt->if_.body, quads, env);
@@ -333,12 +333,12 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         quads->append_line(quads, cmp);
 
         char *forward_label = new_symbol(env, false);
-        quadr_t *forward_jmp = generate_jmp(QT_COND_JMP, forward_label);
+        quadr_t *forward_jmp = generate_jmp(QT_COND_JMP, Q_BEQ, forward_label);
         quads->append_line(quads, forward_jmp);
 
         convert_stmts_to_quads(stmt->while_.body, quads, env);
 
-        quadr_t *backward_jmp = generate_jmp(QT_UNCOND_JMP, backward_label);
+        quadr_t *backward_jmp = generate_jmp(QT_UNCOND_JMP, Q_BR, backward_label);
         quads->append_line(quads, backward_jmp);
 
         quadr_t *forward_target = generate_jump_target(forward_label);
@@ -433,7 +433,8 @@ char* resolve_destination(expr_stack_t *stack, expr_stack_t *backpatch, quadbloc
                 quad_type,
                 resolve_op(op1, quads, env),
                 (backpatch->pop(backpatch))->ident,
-                result_sym
+                result_sym,
+                env
             );
             quads->append_line(quads, q);
         } else {
@@ -441,7 +442,8 @@ char* resolve_destination(expr_stack_t *stack, expr_stack_t *backpatch, quadbloc
                 quad_type,
                 resolve_op(op1, quads, env),
                 resolve_op(op2, quads, env),
-                result_sym
+                result_sym,
+                env
             );
             quads->append_line(quads, q);
         }
@@ -507,18 +509,118 @@ char* new_symbol(env_t *env, bool update_env)
     return sym;
 }
 
-quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result)
+quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result, env_t *env)
 {
+    // Handle arithemetic operations.
     quadr_t *bin = malloc(sizeof(quadr_t));
+    switch (op) {
+        case Q_ADD:
+        case Q_SUB:
+        case Q_MUL:
+        case Q_DIV:
+            bin->t = QT_BINARY;
+            bin->label = NULL;
+            bin->op = op;
+            bin->arg1.t = Q_SYMBOLIC;
+            bin->arg1.sym = arg1;
+            bin->arg2.t = Q_SYMBOLIC;
+            bin->arg2.sym = arg2;
+            bin->result.t = Q_SYMBOLIC;
+            bin->result.sym = result;
+            return bin;
+        default:
+            break;
+    }
+
+    // High-level overview of what's happening with logical
+    // operations below.
+    //
+    //          CMP X, Y, Z
+    //          COND_JMP s001
+    //          MOV #0, Z
+    //          BR s002
+    // s001:    MOV #1, Z
+    // s002:    NOP
+
+    // Fall through to logical operations.
+    switch (op) {
+        case Q_GTE:
+            op = Q_BGE;
+            break;
+        case Q_LTE:
+            op = Q_BLE;
+            break;
+        case Q_EQ:
+            op = Q_BEQ;
+            break;
+    }
     bin->t = QT_BINARY;
     bin->label = NULL;
-    bin->op = op;
+    bin->op = Q_CMP;
     bin->arg1.t = Q_SYMBOLIC;
     bin->arg1.sym = arg1;
     bin->arg2.t = Q_SYMBOLIC;
     bin->arg2.sym = arg2;
     bin->result.t = Q_SYMBOLIC;
     bin->result.sym = result;
+
+    char *true_label = new_symbol(env, true);
+    quadr_t *cond_jmp = malloc(sizeof(quadr_t));
+    cond_jmp->t = QT_COND_JMP;
+    cond_jmp->label = NULL;
+    cond_jmp->op = op;
+    cond_jmp->arg1.t = Q_LABEL;
+    cond_jmp->arg1.sym = true_label;
+    cond_jmp->arg2.t = Q_NONE;
+    cond_jmp->result.t = Q_NONE;
+
+    bin->next = cond_jmp;
+
+    quadr_t *mov0 = malloc(sizeof(quadr_t));
+    mov0->label = NULL;
+    mov0->t = QT_COPY;
+    mov0->op = Q_STORE;
+    mov0->arg1.t = Q_CONSTANT;
+    mov0->arg1.constant = 0;
+    mov0->arg2.t = Q_NONE;
+    mov0->result.t = Q_SYMBOLIC;
+    mov0->result.sym = result;
+
+    cond_jmp->next = mov0;
+
+    char *false_label = new_symbol(env, true);
+    quadr_t *jmp = malloc(sizeof(quadr_t));
+    jmp->t = QT_UNCOND_JMP;
+    jmp->op = Q_BR;
+    jmp->label = NULL;
+    jmp->arg1.t = Q_LABEL;
+    jmp->arg1.sym = false_label;
+    jmp->arg2.t = Q_NONE;
+    jmp->result.t = Q_NONE;
+
+    mov0->next = jmp;
+
+    quadr_t *mov1 = malloc(sizeof(quadr_t));
+    mov1->label = true_label;
+    mov1->t = QT_COPY;
+    mov1->op = Q_STORE;
+    mov1->arg1.t = Q_CONSTANT;
+    mov1->arg1.constant = 1;
+    mov1->arg2.t = Q_NONE;
+    mov1->result.t = Q_SYMBOLIC;
+    mov1->result.sym = result;
+
+    jmp->next = mov1;
+
+    quadr_t *nop = malloc(sizeof(quadr_t));
+    nop->label = false_label;
+    nop->t = QT_NOP;
+    nop->op = Q_NOP;
+    nop->arg1.t = Q_NONE;
+    nop->arg2.t = Q_NONE;
+    nop->result.t = Q_NONE;
+
+    mov1->next = nop;
 
     return bin;
 }
@@ -551,13 +653,13 @@ quadr_t* generate_cmp_zero(char *sym, env_t *env)
     return cmp;
 }
 
-quadr_t* generate_jmp(quad_type_t jmp_type, char *jump_label)
+quadr_t* generate_jmp(quad_type_t jmp_type, quad_op_t jmp_op, char *jump_label)
 {
     quadr_t *branch = malloc(sizeof(quadr_t));
     branch->t = jmp_type;
     branch->label = NULL;
-    branch->op = Q_GOTO;
-    branch->arg1.t = Q_SYMBOLIC;
+    branch->op = jmp_op;
+    branch->arg1.t = Q_LABEL;
     branch->arg1.sym = jump_label;
     branch->arg2.t = Q_NONE;
     branch->result.t = Q_NONE;
