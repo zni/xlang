@@ -144,16 +144,80 @@ void debug_quads(quadblock_t *q)
         while (tmp != NULL) {
             switch (tmp->op) {
             case Q_ADD:
-                printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                printf("\tADD\t");
+                if (tmp->arg1.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->arg2.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg2.constant);
+                } else {
+                    printf("%s,\t", tmp->arg2.sym);
+                }
+                if (tmp->result.t == Q_CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    if (tmp->result.t == Q_VARIABLE) {
+                        printf("VAR %s\n", tmp->result.sym);
+                    } else {
+                        printf("SYM %s\n", tmp->result.sym);
+                    }
+                }
                 break;
             case Q_SUB:
-                printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                printf("\tSUB\t");
+                if (tmp->arg1.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->arg2.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg2.constant);
+                } else {
+                    printf("%s,\t", tmp->arg2.sym);
+                }
+                if (tmp->result.t == Q_CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    printf("%s\n", tmp->result.sym);
+                }
                 break;
             case Q_MUL:
-                printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                printf("\tMUL\t");
+                if (tmp->arg1.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->arg2.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg2.constant);
+                } else {
+                    printf("%s,\t", tmp->arg2.sym);
+                }
+                if (tmp->result.t == Q_CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    printf("%s\n", tmp->result.sym);
+                }
                 break;
             case Q_DIV:
-                printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
+                printf("\tDIV\t");
+                if (tmp->arg1.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->arg2.t == Q_CONSTANT) {
+                    printf("%d,\t", tmp->arg2.constant);
+                } else {
+                    printf("%s,\t", tmp->arg2.sym);
+                }
+                if (tmp->result.t == Q_CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    printf("%s\n", tmp->result.sym);
+                }
                 break;
             case Q_GTE:
                 printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
@@ -192,10 +256,20 @@ void debug_quads(quadblock_t *q)
                 printf("\tCALL\t%s\n", tmp->arg1.sym);
                 break;
             case Q_STORE:
+                printf("\tSTORE\t");
                 if (tmp->arg1.t == Q_CONSTANT) {
-                    printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1.constant, tmp->result.sym);
-                } else if (tmp->arg1.t == Q_SYMBOLIC) {
-                    printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
+                    printf("%d,\t", tmp->arg1.constant);
+                } else {
+                    printf("%s,\t", tmp->arg1.sym);
+                }
+                if (tmp->result.t == Q_CONSTANT) {
+                    printf("%d\n", tmp->result.constant);
+                } else {
+                    if (tmp->result.t == Q_VARIABLE) {
+                        printf("VAR %s\n", tmp->result.sym);
+                    } else {
+                        printf("SYM %s\n", tmp->result.sym);
+                    }
                 }
                 break;
             case Q_RETURN:
@@ -213,7 +287,7 @@ quadblock_t* convert_to_quads(program_t *program, env_t *env)
 {
     quadblock_t *quadblocks = new_quadblock();
     convert_blocks_to_quads(program->blocks, quadblocks, env);
-    //debug_quads(quadblocks);
+    debug_quads(quadblocks);
     return quadblocks;
 }
 
@@ -300,7 +374,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         assign->arg1.t = Q_SYMBOLIC;
         assign->arg1.sym = result_sym;
         assign->arg2.t = Q_NONE;
-        assign->result.t = Q_SYMBOLIC;
+        assign->result.t = Q_VARIABLE;
         assign->result.sym = sym;
         quads->append_line(quads, assign);
     } else if (stmt->t == IF_) {

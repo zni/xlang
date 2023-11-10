@@ -29,17 +29,17 @@ void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
 interval_list_t* calculate_liveness_intervals(quadblock_t*, env_t*);
 void assign_registers(interval_list_t*, env_t*);
-void expire_old_intervals(interval_t*, interval_list_t*, env_t*, register_pool_t*);
-//void spill();
+void expire_old_intervals(interval_t*, interval_list_t**, env_t*, register_pool_t*);
+void spill(char*, env_t*);
 
 env_t* build_sym_env(env_t*);
 
 interval_list_t* new_interval_list();
-void add_interval(interval_list_t*, unsigned short, unsigned short, char*);
-void remove_interval(interval_list_t*, char*);
+void add_interval(interval_list_t**, unsigned short, unsigned short, char*);
+void remove_interval(interval_list_t**, char*);
 interval_list_t* copy_interval_list(interval_list_t*);
-void sort_by_lower(interval_list_t*);
-void sort_by_upper(interval_list_t*);
+void sort_by_lower(interval_list_t**);
+void sort_by_upper(interval_list_t**);
 
 set_t* new_set();
 void add_item_to_set(set_t*, char*);
@@ -519,7 +519,7 @@ void generate_code(quadblock_t *blocks, env_t *env)
     quadblock_t *b = blocks->next;
     while (b != NULL) {
         interval_list_t *lifetimes = calculate_liveness_intervals(b, env);
-        sort_by_lower(lifetimes);
+        sort_by_lower(&lifetimes);
         assign_registers(lifetimes, env);
         b = b->next;
     }
@@ -597,7 +597,7 @@ interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
                 line = line->next;
             }
 
-            add_interval(lifetimes, begin, last_end_index, element->sym);
+            add_interval(&lifetimes, begin, last_end_index, element->sym);
 
             element = element->next;
         }
@@ -615,16 +615,16 @@ void assign_registers(interval_list_t *lifetimes, env_t *env)
     interval_t *current = lifetimes->list;
     char *lifetime_sym = current->sym;
     for (int i = 0; i < lifetimes->count; i++) {
-        expire_old_intervals(current, active, env, &pool);
+        expire_old_intervals(current, &active, env, &pool);
         if (active->count == 6) {
-            //spill();
+            spill(lifetime_sym, env);
             printf("spilling => %s\n", lifetime_sym);
         } else {
             env_data_t *sym = lookup_entry(env, lifetime_sym);
             if (sym != NULL) {
                 short reg = remove_register(&pool);
                 sym->ir.reg = reg;
-                add_interval(active, current->lower, current->upper, lifetime_sym);
+                add_interval(&active, current->lower, current->upper, lifetime_sym);
             }
         }
         current = current->next;
@@ -634,14 +634,17 @@ void assign_registers(interval_list_t *lifetimes, env_t *env)
     }
 }
 
-void expire_old_intervals(interval_t *interval, interval_list_t *active, env_t *env, register_pool_t *pool)
+void expire_old_intervals(interval_t *interval, interval_list_t **active, env_t *env, register_pool_t *pool)
 {
-    if (active->count == 0) {
+    if ((*active)->count == 0) {
         return;
     }
 
-    interval_list_t *endtimes = active;
-    sort_by_upper(endtimes);
+    interval_list_t *endtimes = *active;
+    sort_by_upper(&endtimes);
+    debug_lifetimes(endtimes);
+    printf("sorted by upper\n");
+    //printf("%s => %p\n", __FUNCTION__, active);
     interval_t *end = endtimes->list;
     for (int i = 0; i < endtimes->count; i++) {
         if (end->upper >= interval->lower) {
@@ -651,10 +654,25 @@ void expire_old_intervals(interval_t *interval, interval_list_t *active, env_t *
     }
 
     sort_by_lower(active);
+    debug_lifetimes(endtimes);
+    printf("sorted by lower\n");
+    //printf("%s => lower(%p)\n", __FUNCTION__, active);
     char *sym = end->sym;
     remove_interval(active, end->sym);
+    //printf("%s => remove(%p)\n", __FUNCTION__, active);
     env_data_t *d = lookup_entry(env, sym);
+    //printf("%s => lookup(%p)\n", __FUNCTION__, active);
     add_register(pool, d->ir.reg);
+    endtimes = NULL;
+}
+
+void spill(char *sym, env_t *env)
+{
+    env_data_t *data = lookup_entry(env, sym);
+    if (data == NULL)
+        return;
+
+    data->ir.reg = SPILL;
 }
 
 env_t* build_sym_env(env_t *env)
@@ -697,47 +715,47 @@ interval_list_t* new_interval_list()
     return list;
 }
 
-void add_interval(interval_list_t *list, unsigned short lower, unsigned short upper, char *sym)
+void add_interval(interval_list_t **list, unsigned short lower, unsigned short upper, char *sym)
 {
     interval_t *interval = malloc(sizeof(interval_t));
     interval->lower = lower;
     interval->upper = upper;
     interval->sym = sym;
 
-    if (list->list == NULL) {
-        list->list = interval;
+    if ((*list)->list == NULL) {
+        (*list)->list = interval;
         interval->next = NULL;
-        list->count += 1;
+        (*list)->count += 1;
     } else {
-        interval_t **next = &(list->list);
+        interval_t **next = &((*list)->list);
         while (*next != NULL) {
             next = &(*next)->next;
         }
 
         *next = interval;
         (*next)->next = NULL;
-        list->count += 1;
+        (*list)->count += 1;
     }
 }
 
-void remove_interval(interval_list_t *list, char *sym)
+void remove_interval(interval_list_t **list, char *sym)
 {
-    if (list->count == 0) {
+    if ((*list)->count == 0) {
         return;
     }
 
     interval_t *tmp;
-    interval_t **c = &(list->list);
+    interval_t **c = &((*list)->list);
     if (strcmp(sym, (*c)->sym) == 0) {
         tmp = *c;
-        if (list->count > 1) {
-            list->list = list->list->next;
+        if ((*list)->count > 1) {
+            (*list)->list = (*list)->list->next;
         } else {
-            list->list = NULL;
+            (*list)->list = NULL;
         }
-        free(tmp);
-        tmp = NULL;
-        list->count--;
+        //free(tmp);
+        //tmp = NULL;
+        (*list)->count--;
         return;
     }
 
@@ -748,25 +766,25 @@ void remove_interval(interval_list_t *list, char *sym)
         if (strcmp(sym, (*c)->sym) == 0) {
             (*p)->next = (*c)->next;
             tmp = *c;
-            free(tmp);
-            tmp = NULL;
-            list->count--;
+            //free(tmp);
+            //tmp = NULL;
+            (*list)->count--;
             return;
         }
     }
 }
 
-void sort_by_lower(interval_list_t *list)
+void sort_by_lower(interval_list_t **list)
 {
-    if (list->count == 0 || list->count == 1) {
+    if ((*list)->count == 0 || (*list)->count == 1) {
         return;
     }
 
     interval_t **node;
     interval_t *n1, *n2, *tmp;
-    for (int round = 0; round < list->count; round++) {
-        node = &(list->list);
-        for (int n = 0; n < list->count; n++) {
+    for (int round = 0; round < (*list)->count; round++) {
+        node = &((*list)->list);
+        for (int n = 0; n < (*list)->count; n++) {
             if ((*node)->lower > (*node)->next->lower) {
                 n1 = *node;
                 n2 = (*node)->next;
@@ -783,17 +801,17 @@ void sort_by_lower(interval_list_t *list)
     }
 }
 
-void sort_by_upper(interval_list_t *list)
+void sort_by_upper(interval_list_t **list)
 {
-    if (list->count == 0 || list->count == 1) {
+    if ((*list)->count == 0 || (*list)->count == 1) {
         return;
     }
 
     interval_t **node;
     interval_t *n1, *n2, *tmp;
-    for (int round = 0; round < list->count; round++) {
-        node = &(list->list);
-        for (int n = 0; n < list->count; n++) {
+    for (int round = 0; round < (*list)->count; round++) {
+        node = &((*list)->list);
+        for (int n = 0; n < (*list)->count; n++) {
             if ((*node)->upper > (*node)->next->upper) {
                 n1 = *node;
                 n2 = (*node)->next;
