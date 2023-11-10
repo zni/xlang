@@ -160,6 +160,14 @@ assembly_t* generate_ADD(quadr_t *line, env_t *env)
     populate_operand(&line->arg1, &add->operand1, env);
     populate_operand(&line->arg2, &add->operand2, env);
 
+    assembly_t *mov = malloc(sizeof(assembly_t));
+    mov->next = NULL;
+
+    mov->op = ASM_MOV;
+    populate_operand(&line->arg2, &mov->operand1, env);
+    populate_operand(&line->result, &mov->operand2, env);
+
+    add->next = mov;
     return add;
 }
 
