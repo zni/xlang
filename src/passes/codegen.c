@@ -23,7 +23,7 @@ assembly_t* generate_NOP(quadr_t*, env_t*);
 assembly_t* generate_JSR(quadr_t*, env_t*);
 assembly_t* generate_RTS(quadr_t*, env_t*);
 assembly_t* generate_HALT();
-void remove_nops(assembly_block_t*);
+void remove_nops(assembly_block_t**);
 
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
@@ -229,7 +229,7 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
         line = line->next;
         append_assembly(codeblock, code);
     }
-    remove_nops(codeblock);
+    remove_nops(&codeblock);
     return codeblock;
 }
 
@@ -445,19 +445,19 @@ assembly_t* generate_HALT()
 
 // A naive NOP remover.
 // TODO Take into account sliding a label over another label.
-void remove_nops(assembly_block_t *block)
+void remove_nops(assembly_block_t **block)
 {
-    assembly_t *prev    = block->code;
-    assembly_t *current = block->code;
+    assembly_t *prev    = (*block)->code;
+    assembly_t *current = (*block)->code;
     char *label;
     while (current != NULL) {
         // We're at the head, slide forward.
-        if (current == (block->code) && current->op == ASM_NOP) {
+        if (current == ((*block)->code) && current->op == ASM_NOP) {
             label = current->label;
             if (current->next != NULL) {
-                block->code = current->next;
+                (*block)->code = current->next;
                 current->next->label = label;
-                block->instruction_count--;
+                (*block)->instruction_count--;
             }
 
         // We're somewhere in the middle, slide forward.
@@ -465,7 +465,7 @@ void remove_nops(assembly_block_t *block)
             label = current->label;
             prev->next = current->next;
             current->next->label = label;
-            block->instruction_count--;
+            (*block)->instruction_count--;
 
         // If we have nowhere to go, convert to HALT.
         // Since the only block ending with a NOP and
