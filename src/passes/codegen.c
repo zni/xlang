@@ -186,11 +186,11 @@ void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
 {
     env_data_t *lookup;
     switch (qa->t) {
-        case CONSTANT:
+        case Q_CONSTANT:
             op->t = ASM_CONSTANT;
             op->constant = qa->constant;
             break;
-        case SYM:
+        case Q_SYMBOLIC:
             lookup = lookup_entry(env, qa->sym);
             if (lookup != NULL && lookup->ir.reg >= 0) {
                 op->t = ASM_REGISTER;
@@ -200,7 +200,7 @@ void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
                 op->memory = qa->sym;
             }
             break;
-        case VARIABLE:
+        case Q_VARIABLE:
             op->t = ASM_MEMORY;
             op->memory = qa->sym;
             break;
@@ -242,15 +242,15 @@ interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
 
     quadr_t *line = block->lines;
     while (line != NULL) {
-        if (line->arg1.t == SYM) {
+        if (line->arg1.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->arg1.sym);
         }
 
-        if (line->arg2.t == SYM) {
+        if (line->arg2.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->arg2.sym);
         }
 
-        if (line->result.t == SYM) {
+        if (line->result.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->result.sym);
         }
 
@@ -268,9 +268,9 @@ interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
             begin = 0;
             line = block->lines;
             while (line != NULL) {
-                if (((line->arg1.t == SYM) && (strcmp(line->arg1.sym, element->sym) == 0)) ||
-                    ((line->arg2.t == SYM) && (strcmp(line->arg2.sym, element->sym) == 0))  ||
-                    ((line->result.t == SYM) && (strcmp(line->result.sym, element->sym) == 0))) {
+                if (((line->arg1.t == Q_SYMBOLIC) && (strcmp(line->arg1.sym, element->sym) == 0)) ||
+                    ((line->arg2.t == Q_SYMBOLIC) && (strcmp(line->arg2.sym, element->sym) == 0))  ||
+                    ((line->result.t == Q_SYMBOLIC) && (strcmp(line->result.sym, element->sym) == 0))) {
                     break;
                 } else {
                     begin++;
@@ -282,9 +282,9 @@ interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
             unsigned short end = begin;
             unsigned short last_end_index = end;
             while (line != NULL) {
-                if (((line->arg1.t == SYM) && (strcmp(line->arg1.sym, element->sym) == 0)) ||
-                    ((line->arg2.t == SYM) && (strcmp(line->arg2.sym, element->sym) == 0))  ||
-                    ((line->result.t == SYM) && (strcmp(line->result.sym, element->sym) == 0))) {
+                if (((line->arg1.t == Q_SYMBOLIC) && (strcmp(line->arg1.sym, element->sym) == 0)) ||
+                    ((line->arg2.t == Q_SYMBOLIC) && (strcmp(line->arg2.sym, element->sym) == 0))  ||
+                    ((line->result.t == Q_SYMBOLIC) && (strcmp(line->result.sym, element->sym) == 0))) {
                     last_end_index = end;
                     end++;
                 } else {

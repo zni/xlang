@@ -5,12 +5,12 @@
 #include "env.h"
 
 typedef enum quad_type {
-    UNCOND_JMP,
-    COND_JMP,
-    COPY,
-    BINARY,
-    PROC_,
-    NOP
+    Q_UNCOND_JMP,
+    Q_COND_JMP,
+    Q_COPY,
+    Q_BINARY,
+    Q_PROCEDURE,
+    Q_NOP
 } quad_type_t;
 
 typedef enum quad_op {
@@ -30,11 +30,11 @@ typedef enum quad_op {
 } quad_op_t;
 
 typedef enum quad_result {
-    CONSTANT,
-    SYM,
-    VARIABLE,
-    REG,
-    NONE
+    Q_CONSTANT,
+    Q_SYMBOLIC,
+    Q_VARIABLE,
+    Q_REGISTER,
+    Q_NONE
 } quad_result_t;
 
 
