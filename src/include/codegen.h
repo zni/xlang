@@ -53,10 +53,16 @@ typedef enum asm_op {
     ASM_CMP,
     ASM_JMP,
     ASM_BEQ,
-    ASM_HALT
+    ASM_BGE,
+    ASM_BLE,
+    ASM_BNE,
+    ASM_BR,
+    ASM_HALT,
+    ASM_NOP
 } asm_op_t;
 
 typedef enum asm_arg {
+    ASM_LABEL,
     ASM_MEMORY,
     ASM_REGISTER,
     ASM_CONSTANT,

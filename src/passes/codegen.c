@@ -15,16 +15,19 @@ assembly_t* generate_SUB(quadr_t*, env_t*);
 assembly_t* generate_MUL(quadr_t*, env_t*);
 assembly_t* generate_DIV(quadr_t*, env_t*);
 
+assembly_t* generate_BR(quadr_t*, env_t*);
 assembly_t* generate_BGE(quadr_t*, env_t*);
-/*
 assembly_t* generate_BLE(quadr_t*, env_t*);
 assembly_t* generate_BEQ(quadr_t*, env_t*);
-assembly_t* generate_JSR(quadr_t*, env_t*);
-assembly_t* generate_JMP(quadr_t*, env_t*);
 assembly_t* generate_CMP(quadr_t*, env_t*);
 assembly_t* generate_NOP(quadr_t*, env_t*);
+
+/*
+assembly_t* generate_JSR(quadr_t*, env_t*);
+assembly_t* generate_JMP(quadr_t*, env_t*);
 assembly_t* generate_RTS(quadr_t*, env_t*);
 */
+
 assembly_t* generate_HALT();
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
@@ -82,6 +85,10 @@ void print_assembly_blocks(assembly_block_t *block)
 
 void print_assembly(assembly_t *code)
 {
+    if (code == NULL) {
+        return;
+    }
+
     if (code->label != NULL)
         printf("%s:\t", code->label);
     else
@@ -91,8 +98,38 @@ void print_assembly(assembly_t *code)
         case ASM_ADD:
             printf("ADD");
             break;
+        case ASM_SUB:
+            printf("SUB");
+            break;
+        case ASM_DIV:
+            printf("DIV");
+            break;
+        case ASM_MUL:
+            printf("MUL");
+            break;
         case ASM_MOV:
             printf("MOV");
+            break;
+        case ASM_CMP:
+            printf("CMP");
+            break;
+        case ASM_BEQ:
+            printf("BEQ");
+            break;
+        case ASM_BGE:
+            printf("BGE");
+            break;
+        case ASM_BLE:
+            printf("BLE");
+            break;
+        case ASM_BNE:
+            printf("BNE");
+            break;
+        case ASM_BR:
+            printf("BR");
+            break;
+        case ASM_HALT:
+            printf("HALT");
             break;
         default:
             printf("XXX");
@@ -104,6 +141,7 @@ void print_assembly(assembly_t *code)
         case ASM_CONSTANT:
             printf(" #%d", code->operand1.constant);
             break;
+        case ASM_LABEL:
         case ASM_MEMORY:
             printf(" %s", code->operand1.memory);
             break;
@@ -118,6 +156,7 @@ void print_assembly(assembly_t *code)
         case ASM_CONSTANT:
             printf(", #%d", code->operand2.constant);
             break;
+        case ASM_LABEL:
         case ASM_MEMORY:
             printf(", %s", code->operand2.memory);
             break;
@@ -150,8 +189,26 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
             case Q_DIV:
                 code = generate_DIV(line, env);
                 break;
-            default:
+            case Q_BGE:
+                code = generate_BGE(line, env);
                 break;
+            case Q_BLE:
+                code = generate_BLE(line, env);
+                break;
+            case Q_BEQ:
+                code = generate_BEQ(line, env);
+                break;
+            case Q_BR:
+                code = generate_BR(line, env);
+                break;
+            case Q_CMP:
+                code = generate_CMP(line, env);
+                break;
+            case Q_NOP:
+                code = generate_NOP(line, env);
+                break;
+            default:
+                continue;
         }
         line = line->next;
         append_assembly(codeblock, code);
@@ -187,6 +244,7 @@ assembly_t* generate_ADD(quadr_t *line, env_t *env)
     mov->next = NULL;
 
     mov->op = ASM_MOV;
+    mov->label = NULL;
     populate_operand(&line->arg2, &mov->operand1, env);
     populate_operand(&line->result, &mov->operand2, env);
 
@@ -208,6 +266,7 @@ assembly_t *generate_SUB(quadr_t *line, env_t *env)
     mov->next = NULL;
 
     mov->op = ASM_MOV;
+    mov->label = NULL;
     populate_operand(&line->arg2, &mov->operand1, env);
     populate_operand(&line->result, &mov->operand2, env);
 
@@ -229,6 +288,7 @@ assembly_t *generate_MUL(quadr_t *line, env_t *env)
     mov->next = NULL;
 
     mov->op = ASM_MOV;
+    mov->label = NULL;
     populate_operand(&line->arg2, &mov->operand1, env);
     populate_operand(&line->result, &mov->operand2, env);
 
@@ -250,6 +310,7 @@ assembly_t *generate_DIV(quadr_t *line, env_t *env)
     mov->next = NULL;
 
     mov->op = ASM_MOV;
+    mov->label = NULL;
     populate_operand(&line->arg2, &mov->operand1, env);
     populate_operand(&line->result, &mov->operand2, env);
 
@@ -257,16 +318,83 @@ assembly_t *generate_DIV(quadr_t *line, env_t *env)
     return div;
 }
 
+assembly_t *generate_BR(quadr_t *line, env_t *env)
+{
+    assembly_t *br = malloc(sizeof(assembly_t));
+    br->next = NULL;
+
+    br->op = ASM_BR;
+    br->label = line->label;
+    populate_operand(&line->arg1, &br->operand1, env);
+    br->operand2.t = ASM_NONE;
+    return br;
+}
+
 assembly_t *generate_BGE(quadr_t *line, env_t *env)
 {
-    return NULL;
+    assembly_t *bge = malloc(sizeof(assembly_t));
+    bge->next = NULL;
+
+    bge->op = ASM_BGE;
+    bge->label = line->label;
+    populate_operand(&line->arg1, &bge->operand1, env);
+    bge->operand2.t = ASM_NONE;
+    return bge;
+}
+
+assembly_t *generate_BLE(quadr_t *line, env_t *env)
+{
+    assembly_t *ble = malloc(sizeof(assembly_t));
+    ble->next = NULL;
+
+    ble->op = ASM_BLE;
+    ble->label = line->label;
+    populate_operand(&line->arg1, &ble->operand1, env);
+    ble->operand2.t = ASM_NONE;
+    return ble;
+}
+
+assembly_t *generate_BEQ(quadr_t *line, env_t *env)
+{
+    assembly_t *beq = malloc(sizeof(assembly_t));
+    beq->next = NULL;
+
+    beq->op = ASM_BEQ;
+    beq->label = line->label;
+    populate_operand(&line->arg1, &beq->operand1, env);
+    beq->operand2.t = ASM_NONE;
+    return beq;
+}
+
+assembly_t *generate_CMP(quadr_t *line, env_t *env)
+{
+    assembly_t *cmp = malloc(sizeof(assembly_t));
+    cmp->next = NULL;
+
+    cmp->op = ASM_CMP;
+    cmp->label = line->label;
+    populate_operand(&line->arg1, &cmp->operand1, env);
+    populate_operand(&line->arg2, &cmp->operand2, env);
+    return cmp;
+}
+
+assembly_t *generate_NOP(quadr_t *line, env_t *env)
+{
+    assembly_t *nop = malloc(sizeof(assembly_t));
+    nop->next = NULL;
+
+    nop->op = ASM_NOP;
+    nop->label = line->label;
+    populate_operand(&line->arg1, &nop->operand1, env);
+    populate_operand(&line->arg2, &nop->operand2, env);
+    return nop;
 }
 
 assembly_t* generate_HALT()
 {
     assembly_t *halt = malloc(sizeof(assembly_t));
     halt->next = NULL;
-
+    halt->label = NULL;
     halt->op = ASM_HALT;
     halt->operand1.t = ASM_NONE;
     halt->operand2.t = ASM_NONE;
@@ -295,6 +423,12 @@ void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
             op->t = ASM_MEMORY;
             op->memory = qa->sym;
             break;
+        case Q_LABEL:
+            op->t = ASM_LABEL;
+            op->memory = qa->sym;
+            break;
+        case Q_NONE:
+            op->t = ASM_NONE;
         default:
             break;
     }
@@ -307,7 +441,6 @@ void generate_code(quadblock_t *blocks, env_t *env)
     while (b != NULL) {
         interval_list_t *lifetimes = calculate_liveness_intervals(b, env);
         sort_by_lower(lifetimes);
-        debug_lifetimes(lifetimes);
         assign_registers(lifetimes, env);
         b = b->next;
     }
