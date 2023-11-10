@@ -56,6 +56,7 @@ typedef enum asm_op {
 typedef enum asm_arg {
     ASM_MEMORY,
     ASM_REGISTER,
+    ASM_CONSTANT,
     ASM_NONE
 } asm_arg_t;
 
@@ -64,6 +65,7 @@ typedef struct asm_operand {
     union {
         char *memory;
         short reg;
+        unsigned short constant;
     };
 } asm_operand_t;
 
@@ -85,6 +87,8 @@ typedef struct assembly_block assembly_block_t;
 struct assembly_block {
     assembly_t *code;
     unsigned int instruction_count;
+
+    assembly_block_t *next;
 };
 
 void generate_code(quadblock_t*, env_t*);

@@ -6,9 +6,13 @@
 
 void debug_lifetimes(interval_list_t*);
 
-void generate_assembly(quadblock_t*, env_t*);
-void generate_MOV(quadr_t*, env_t*);
-void generate_ADD(quadr_t*, env_t*);
+void print_assembly_blocks(assembly_block_t*);
+void print_assembly(assembly_t*);
+assembly_block_t* generate_assembly(quadblock_t*, env_t*);
+assembly_t* generate_MOV(quadr_t*, env_t*);
+assembly_t* generate_ADD(quadr_t*, env_t*);
+assembly_t* generate_HALT();
+void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
 interval_list_t* calculate_liveness_intervals(quadblock_t*, env_t*);
 void assign_registers(interval_list_t*, env_t*);
@@ -32,6 +36,11 @@ void init_register_pool(register_pool_t*);
 void add_register(register_pool_t*, short);
 short remove_register(register_pool_t*);
 
+assembly_block_t* new_assembly_block();
+void append_assembly_block(assembly_block_t*, assembly_block_t*);
+void append_assembly(assembly_block_t*, assembly_t*);
+assembly_t* get_assembly(assembly_block_t*, unsigned int index);
+
 void debug_lifetimes(interval_list_t *lifetimes)
 {
     printf("LIFETIMES, n = %d\n", lifetimes->count);
@@ -44,119 +53,148 @@ void debug_lifetimes(interval_list_t *lifetimes)
 
 }
 
-void generate_assembly(quadblock_t *block, env_t *env)
+void print_assembly_blocks(assembly_block_t *block)
 {
+    assembly_t *code;
+    assembly_block_t *b = block;
+    while  (b != NULL) {
+        for (int i = 0; i < b->instruction_count; i++) {
+            code = get_assembly(b, i);
+            print_assembly(code);
+        }
+        b = b->next;
+    }
+}
+
+void print_assembly(assembly_t *code)
+{
+    if (code->label != NULL)
+        printf("%s:\t", code->label);
+    else
+        printf("\t");
+
+    switch (code->op) {
+        case ASM_ADD:
+            printf("ADD");
+            break;
+        case ASM_MOV:
+            printf("MOV");
+            break;
+        default:
+            printf("XXX");
+    }
+
+    switch (code->operand1.t) {
+        case ASM_NONE:
+            break;
+        case ASM_CONSTANT:
+            printf(" #%d", code->operand1.constant);
+            break;
+        case ASM_MEMORY:
+            printf(" %s", code->operand1.memory);
+            break;
+        case ASM_REGISTER:
+            printf(" R%d", code->operand1.reg);
+            break;
+    }
+
+    switch (code->operand2.t) {
+        case ASM_NONE:
+            break;
+        case ASM_CONSTANT:
+            printf(", #%d", code->operand2.constant);
+            break;
+        case ASM_MEMORY:
+            printf(", %s", code->operand2.memory);
+            break;
+        case ASM_REGISTER:
+            printf(", R%d", code->operand2.reg);
+            break;
+    }
+    putchar('\n');
+}
+
+assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
+{
+    assembly_block_t *codeblock = new_assembly_block();
+    assembly_t *code;
     quadr_t *line = block->lines;
     while (line != NULL) {
         switch (line->op) {
             case STORE__:
-                generate_MOV(line, env);
+                code = generate_MOV(line, env);
                 break;
             case ADD__:
-                generate_ADD(line, env);
+                code = generate_ADD(line, env);
                 break;
             default:
                 break;
         }
         line = line->next;
+        append_assembly(codeblock, code);
     }
+
+    return codeblock;
 }
 
-void generate_MOV(quadr_t *line, env_t *env)
+assembly_t* generate_MOV(quadr_t *line, env_t *env)
 {
-    env_data_t *lookup;
-    printf("\tMOV ");
-    switch (line->arg1.t) {
-        case CONSTANT:
-            printf("#%d, ", line->arg1.constant);
-            break;
-        case SYM:
-            lookup = lookup_entry(env, line->arg1.sym);
-            if (lookup->ir.reg >= 0) {
-                printf("R%d, ", lookup->ir.reg);
-            } else {
-                printf("%s, ", lookup->ir.sym);
-            }
-            break;
-        case VARIABLE:
-            printf("%s, ", line->arg1.sym);
-            break;
-        default:
-            break;
-    }
-    switch (line->result.t) {
-        case CONSTANT:
-            printf("#%d\n", line->result.constant);
-            break;
-        case SYM:
-            lookup = lookup_entry(env, line->result.sym);
+    assembly_t *mov = malloc(sizeof(assembly_t));
+    mov->next = NULL;
 
-            if (lookup != NULL && lookup->ir.reg >= 0) {
-                printf("R%d\n", lookup->ir.reg);
-            } else {
-                printf("%s\n", line->result.sym);
-            }
-            break;
-        case VARIABLE:
-            printf("%s\n", line->result.sym);
-            break;
-        default:
-            break;
-    }
+    mov->op = ASM_MOV;
+    mov->label = line->label;
+    populate_operand(&line->arg1, &mov->operand1, env);
+    populate_operand(&line->result, &mov->operand2, env);
+
+    return mov;
 }
 
-void generate_ADD(quadr_t *line, env_t *env)
+assembly_t* generate_ADD(quadr_t *line, env_t *env)
+{
+    assembly_t *add = malloc(sizeof(assembly_t));
+    add->next = NULL;
+
+    add->op = ASM_ADD;
+    add->label = line->label;
+    populate_operand(&line->arg1, &add->operand1, env);
+    populate_operand(&line->arg2, &add->operand2, env);
+
+    return add;
+}
+
+assembly_t* generate_HALT()
+{
+    assembly_t *halt = malloc(sizeof(assembly_t));
+    halt->next = NULL;
+
+    halt->op = ASM_HALT;
+    halt->operand1.t = ASM_NONE;
+    halt->operand2.t = ASM_NONE;
+    return halt;
+}
+
+void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
 {
     env_data_t *lookup;
-    printf("\tADD ");
-    switch (line->arg1.t) {
+    switch (qa->t) {
         case CONSTANT:
-            printf("#%d, ", line->arg1.constant);
+            op->t = ASM_CONSTANT;
+            op->constant = qa->constant;
             break;
         case SYM:
-            lookup = lookup_entry(env, line->arg1.sym);
-            if (lookup->ir.reg >= 0) {
-                printf("R%d, ", lookup->ir.reg);
-            } else {
-                printf("%s, ", lookup->ir.sym);
-            }
-            break;
-        case VARIABLE:
-            printf("%s, ", line->arg1.sym);
-            break;
-        default:
-            break;
-    }
-    switch (line->arg2.t) {
-        case SYM:
-            lookup = lookup_entry(env, line->arg2.sym);
+            lookup = lookup_entry(env, qa->sym);
             if (lookup != NULL && lookup->ir.reg >= 0) {
-                printf("R%d, ", lookup->ir.reg);
+                op->t = ASM_REGISTER;
+                op->reg = lookup->ir.reg;
             } else {
-                printf("%s, ", line->arg2.sym);
+                op->t = ASM_MEMORY;
+                op->memory = qa->sym;
             }
             break;
         case VARIABLE:
-            printf("%s, ", line->arg2.sym);
-            break;
-        default:
-            break;
-    }
-    switch (line->result.t) {
-        case CONSTANT:
-            printf("#%d\n", line->result.constant);
-            break;
-        case SYM:
-            lookup = lookup_entry(env, line->result.sym);
-
-            if (lookup != NULL && lookup->ir.reg >= 0) {
-                printf("R%d\n", lookup->ir.reg);
-            } else {
-                printf("%s\n", line->result.sym);
-            }
-            break;
-        case VARIABLE:
-            printf("%s\n", line->result.sym);
+            op->t = ASM_MEMORY;
+            op->memory = qa->sym;
             break;
         default:
             break;
@@ -175,11 +213,18 @@ void generate_code(quadblock_t *blocks, env_t *env)
         b = b->next;
     }
 
+    assembly_block_t *main_block = NULL;
     b = blocks->next;
     while (b != NULL) {
-        generate_assembly(b, env);
+        if (main_block == NULL)
+            main_block = generate_assembly(b, env);
+        else
+            append_assembly_block(main_block, generate_assembly(b, env));
+
         b = b->next;
     }
+
+    print_assembly_blocks(main_block);
 }
 
 interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
@@ -544,4 +589,52 @@ short remove_register(register_pool_t *pool)
     }
 
     return SPILL;
+}
+
+assembly_block_t* new_assembly_block()
+{
+    assembly_block_t *block = malloc(sizeof(assembly_block_t));
+    block->next = NULL;
+    block->instruction_count = 0;
+    block->code = NULL;
+
+    return block;
+}
+
+void append_assembly_block(assembly_block_t *block_head, assembly_block_t *b)
+{
+    assembly_block_t **next = &(b->next);
+    while (*next != NULL)
+        next = &(*next)->next;
+    *next = b;
+}
+
+void append_assembly(assembly_block_t *block, assembly_t *code)
+{
+    unsigned int instructions = 0;
+    assembly_t *c = code;
+    while (c != NULL) {
+        instructions++;
+        c = c->next;
+    }
+
+    assembly_t **next = &(block->code);
+    while (*next != NULL)
+        next = &(*next)->next;
+    *next = code;
+
+    block->instruction_count += instructions;
+}
+
+assembly_t* get_assembly(assembly_block_t *block, unsigned int index)
+{
+    assembly_t *b = block->code;
+    for (int i = 0; i < block->instruction_count; i++) {
+        if (i == index)
+            break;
+
+        b = b->next;
+    }
+
+    return b;
 }
