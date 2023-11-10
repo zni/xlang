@@ -121,10 +121,10 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
     quadr_t *line = block->lines;
     while (line != NULL) {
         switch (line->op) {
-            case STORE__:
+            case Q_STORE:
                 code = generate_MOV(line, env);
                 break;
-            case ADD__:
+            case Q_ADD:
                 code = generate_ADD(line, env);
                 break;
             default:

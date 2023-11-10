@@ -143,28 +143,28 @@ void debug_quads(quadblock_t *q)
         quadr_t *tmp = b->lines;
         while (tmp != NULL) {
             switch (tmp->op) {
-            case ADD__:
+            case Q_ADD:
                 printf("\tADD\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case SUB__:
+            case Q_SUB:
                 printf("\tSUB\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case MUL__:
+            case Q_MUL:
                 printf("\tMUL\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case DIV__:
+            case Q_DIV:
                 printf("\tDIV\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case GTE__:
+            case Q_GTE:
                 printf("\tGTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case LTE__:
+            case Q_LTE:
                 printf("\tLTE\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case EQ__:
+            case Q_EQ:
                 printf("\tEQ\t%s,\t%s,\t%s\n", tmp->arg1.sym, tmp->arg2.sym, tmp->result.sym);
                 break;
-            case CMP__:
+            case Q_CMP:
                 printf("\tCMP\t");
                 if (tmp->arg1.t == CONSTANT) {
                     printf("%d,\t", tmp->arg1.constant);
@@ -182,23 +182,23 @@ void debug_quads(quadblock_t *q)
                     printf("%s\n", tmp->result.sym);
                 }
                 break;
-            case NOP__:
+            case Q_NOP:
                 printf("%s:\tNOP\n", tmp->label);
                 break;
-            case GOTO__:
+            case Q_GOTO:
                 printf("\tGOTO\t%s\n", tmp->arg1.sym);
                 break;
-            case CALL__:
+            case Q_CALL:
                 printf("\tCALL\t%s\n", tmp->arg1.sym);
                 break;
-            case STORE__:
+            case Q_STORE:
                 if (tmp->arg1.t == CONSTANT) {
                     printf("\tSTORE\t%d,\t\t%s\n", tmp->arg1.constant, tmp->result.sym);
                 } else if (tmp->arg1.t == SYM) {
                     printf("\tSTORE\t%s,\t\t%s\n", tmp->arg1.sym, tmp->result.sym);
                 }
                 break;
-            case RETURN__:
+            case Q_RETURN:
                 printf("\tRETURN\n");
                 break;
             }
@@ -234,7 +234,7 @@ void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
 
             quadr_t *subroutine = malloc(sizeof(quadr_t));
             subroutine->t = NOP;
-            subroutine->op = NOP__;
+            subroutine->op = Q_NOP;
             subroutine->label = sub_label;
             subroutine->arg1.t = NONE;
             subroutine->arg2.t = NONE;
@@ -251,7 +251,7 @@ void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
 
             quadr_t *rts = malloc(sizeof(quadr_t));
             rts->t = PROC_;
-            rts->op = RETURN__;
+            rts->op = Q_RETURN;
             rts->label = NULL;
             rts->arg1.t = NONE;
             rts->arg2.t = NONE;
@@ -296,7 +296,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
         quadr_t *assign = malloc(sizeof(quadr_t));
         assign->t = COPY;
         assign->label = NULL;
-        assign->op = STORE__;
+        assign->op = Q_STORE;
         assign->arg1.t = SYM;
         assign->arg1.sym = result_sym;
         assign->arg2.t = NONE;
@@ -349,7 +349,7 @@ void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env)
     } else if (stmt->t == CALL_) {
         quadr_t *call = malloc(sizeof(quadr_t));
         call->t = PROC_;
-        call->op = CALL__;
+        call->op = Q_CALL;
         call->label = NULL;
         call->arg1.t = SYM;
         call->arg1.sym = lookup_sym(env, stmt->call_.var);
@@ -368,7 +368,7 @@ char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
-        q->op = STORE__;
+        q->op = Q_STORE;
         q->arg1.t = CONSTANT;
         q->arg1.constant = op->digits;
         q->arg2.t = NONE;
@@ -380,7 +380,7 @@ char* resolve_op(stack_item_t *op, quadblock_t *quads, env_t *env)
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
-        q->op = STORE__;
+        q->op = Q_STORE;
         q->arg1.t = VARIABLE;
         q->arg1.sym = varsym;
         q->arg2.t = NONE;
@@ -399,7 +399,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
-        q->op = STORE__;
+        q->op = Q_STORE;
         q->arg1.t = VARIABLE;
         q->arg1.sym = varsym;
         q->arg2.t = NONE;
@@ -410,7 +410,7 @@ void resolve_destination(stack_item_t *expr, expr_stack_t *stack, expr_stack_t *
         quadr_t *q = malloc(sizeof(quadr_t));
         q->t = COPY;
         q->label = NULL;
-        q->op = STORE__;
+        q->op = Q_STORE;
         q->arg1.t = CONSTANT;
         q->arg1.constant = expr->digits;
         q->arg2.t = NONE;
@@ -460,7 +460,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->label = NULL;
-            q->op = STORE__;
+            q->op = Q_STORE;
             q->arg1.t = VARIABLE;
             q->arg1.sym = varsym;
             q->arg2.t = NONE;
@@ -472,7 +472,7 @@ char* convert_expr_stack_to_quads(expr_stack_t *stack, quadblock_t *quads, env_t
             quadr_t *q = malloc(sizeof(quadr_t));
             q->t = COPY;
             q->label = NULL;
-            q->op = STORE__;
+            q->op = Q_STORE;
             q->arg1.t = CONSTANT;
             q->arg1.constant = top->digits;
             q->arg2.t = NONE;
@@ -575,7 +575,7 @@ quadr_t* generate_jump_target(char *label)
     quadr_t *jump_target = malloc(sizeof(quadr_t));
     jump_target->t = NOP;
     jump_target->label = label;
-    jump_target->op = NOP__;
+    jump_target->op = Q_NOP;
     jump_target->arg1.t = NONE;
     jump_target->arg2.t = NONE;
     jump_target->result.t = NONE;
@@ -588,7 +588,7 @@ quadr_t* generate_cmp_zero(char *sym, env_t *env)
     quadr_t *cmp = malloc(sizeof(quadr_t));
     cmp->t = BINARY;
     cmp->label = NULL;
-    cmp->op = CMP__;
+    cmp->op = Q_CMP;
     cmp->arg1.t = CONSTANT;
     cmp->arg1.constant = 0;
     cmp->arg2.t = SYM;
@@ -603,7 +603,7 @@ quadr_t* generate_jmp(quad_type_t jmp_type, char *jump_label)
     quadr_t *branch = malloc(sizeof(quadr_t));
     branch->t = jmp_type;
     branch->label = NULL;
-    branch->op = GOTO__;
+    branch->op = Q_GOTO;
     branch->arg1.t = SYM;
     branch->arg1.sym = jump_label;
     branch->arg2.t = NONE;
@@ -626,19 +626,19 @@ quad_op_t expr_to_quadop(exprval_t t)
 {
     switch (t) {
     case ADD:
-        return ADD__;
+        return Q_ADD;
     case SUB:
-        return SUB__;
+        return Q_SUB;
     case MUL:
-        return MUL__;
+        return Q_MUL;
     case DIV:
-        return DIV__;
+        return Q_DIV;
     case LTE_:
-        return LTE__;
+        return Q_LTE;
     case GTE_:
-        return GTE__;
+        return Q_GTE;
     case EQ_:
-        return EQ__;
+        return Q_EQ;
 
     case IDENT_:
     case DIGITS_:

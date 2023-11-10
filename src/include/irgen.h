@@ -14,19 +14,19 @@ typedef enum quad_type {
 } quad_type_t;
 
 typedef enum quad_op {
-    ADD__,
-    SUB__,
-    MUL__,
-    DIV__,
-    GTE__,
-    LTE__,
-    EQ__,
-    CALL__,
-    STORE__,
-    GOTO__,
-    CMP__,
-    NOP__,
-    RETURN__
+    Q_ADD,
+    Q_SUB,
+    Q_MUL,
+    Q_DIV,
+    Q_GTE,
+    Q_LTE,
+    Q_EQ,
+    Q_CALL,
+    Q_STORE,
+    Q_GOTO,
+    Q_CMP,
+    Q_NOP,
+    Q_RETURN
 } quad_op_t;
 
 typedef enum quad_result {
