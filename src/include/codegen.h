@@ -47,6 +47,9 @@ typedef struct register_pool {
 typedef enum asm_op {
     ASM_MOV,
     ASM_ADD,
+    ASM_SUB,
+    ASM_DIV,
+    ASM_MUL,
     ASM_CMP,
     ASM_JMP,
     ASM_BEQ,

@@ -229,7 +229,7 @@ void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
             data->name = block->procedure.name;
             data->ir.orig = block->procedure.name;
             data->ir.sym = sub_label;
-            data->ir.t = FUNCTION;
+            data->ir.t = ENV_FUNCTION;
             add_entry(env, block->procedure.name, data);
 
             quadr_t *subroutine = malloc(sizeof(quadr_t));
@@ -276,7 +276,7 @@ void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env)
         data->name = dec->var;
         data->ir.orig = dec->var;
         data->ir.sym = new_symbol(env, false);
-        data->ir.t = VARIABLE_NAME;
+        data->ir.t = ENV_VARIABLE;
         add_entry(env, dec->var, data);
 
         dec = dec->next;
@@ -548,7 +548,7 @@ char* new_symbol(env_t *env, bool update_env)
     data->name = sym;
     data->ir.orig = sym;
     data->ir.sym = sym;
-    data->ir.t = SYMBOLIC;
+    data->ir.t = ENV_SYMBOLIC;
     add_entry(env, sym, data);
 
     return sym;

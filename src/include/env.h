@@ -7,9 +7,9 @@
 #define SPILL -2
 
 typedef enum env_data_type {
-    FUNCTION,
-    SYMBOLIC,
-    VARIABLE_NAME
+    ENV_FUNCTION,
+    ENV_SYMBOLIC,
+    ENV_VARIABLE
 } env_data_type_t;
 
 struct env_data;

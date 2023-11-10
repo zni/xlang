@@ -11,6 +11,20 @@ void print_assembly(assembly_t*);
 assembly_block_t* generate_assembly(quadblock_t*, env_t*);
 assembly_t* generate_MOV(quadr_t*, env_t*);
 assembly_t* generate_ADD(quadr_t*, env_t*);
+assembly_t* generate_SUB(quadr_t*, env_t*);
+assembly_t* generate_MUL(quadr_t*, env_t*);
+assembly_t* generate_DIV(quadr_t*, env_t*);
+
+assembly_t* generate_BGE(quadr_t*, env_t*);
+/*
+assembly_t* generate_BLE(quadr_t*, env_t*);
+assembly_t* generate_BEQ(quadr_t*, env_t*);
+assembly_t* generate_JSR(quadr_t*, env_t*);
+assembly_t* generate_JMP(quadr_t*, env_t*);
+assembly_t* generate_CMP(quadr_t*, env_t*);
+assembly_t* generate_NOP(quadr_t*, env_t*);
+assembly_t* generate_RTS(quadr_t*, env_t*);
+*/
 assembly_t* generate_HALT();
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
@@ -127,6 +141,15 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
             case Q_ADD:
                 code = generate_ADD(line, env);
                 break;
+            case Q_SUB:
+                code = generate_SUB(line, env);
+                break;
+            case Q_MUL:
+                code = generate_MUL(line, env);
+                break;
+            case Q_DIV:
+                code = generate_DIV(line, env);
+                break;
             default:
                 break;
         }
@@ -169,6 +192,74 @@ assembly_t* generate_ADD(quadr_t *line, env_t *env)
 
     add->next = mov;
     return add;
+}
+
+assembly_t *generate_SUB(quadr_t *line, env_t *env)
+{
+    assembly_t *sub = malloc(sizeof(assembly_t));
+    sub->next = NULL;
+
+    sub->op = ASM_SUB;
+    sub->label = line->label;
+    populate_operand(&line->arg1, &sub->operand1, env);
+    populate_operand(&line->arg2, &sub->operand2, env);
+
+    assembly_t *mov = malloc(sizeof(assembly_t));
+    mov->next = NULL;
+
+    mov->op = ASM_MOV;
+    populate_operand(&line->arg2, &mov->operand1, env);
+    populate_operand(&line->result, &mov->operand2, env);
+
+    sub->next = mov;
+    return sub;
+}
+
+assembly_t *generate_MUL(quadr_t *line, env_t *env)
+{
+    assembly_t *mul = malloc(sizeof(assembly_t));
+    mul->next = NULL;
+
+    mul->op = ASM_MUL;
+    mul->label = line->label;
+    populate_operand(&line->arg1, &mul->operand1, env);
+    populate_operand(&line->arg2, &mul->operand2, env);
+
+    assembly_t *mov = malloc(sizeof(assembly_t));
+    mov->next = NULL;
+
+    mov->op = ASM_MOV;
+    populate_operand(&line->arg2, &mov->operand1, env);
+    populate_operand(&line->result, &mov->operand2, env);
+
+    mul->next = mov;
+    return mul;
+}
+
+assembly_t *generate_DIV(quadr_t *line, env_t *env)
+{
+    assembly_t *div = malloc(sizeof(assembly_t));
+    div->next = NULL;
+
+    div->op = ASM_DIV;
+    div->label = line->label;
+    populate_operand(&line->arg1, &div->operand1, env);
+    populate_operand(&line->arg2, &div->operand2, env);
+
+    assembly_t *mov = malloc(sizeof(assembly_t));
+    mov->next = NULL;
+
+    mov->op = ASM_MOV;
+    populate_operand(&line->arg2, &mov->operand1, env);
+    populate_operand(&line->result, &mov->operand2, env);
+
+    div->next = mov;
+    return div;
+}
+
+assembly_t *generate_BGE(quadr_t *line, env_t *env)
+{
+    return NULL;
 }
 
 assembly_t* generate_HALT()
@@ -364,14 +455,14 @@ env_t* build_sym_env(env_t *env)
             continue;
 
         entry = env->dict[i];
-        if (entry->ir.t == SYMBOLIC) {
+        if (entry->ir.t == ENV_SYMBOLIC) {
             entry->ir.reg = UNINITIALIZED;
             add_entry(sym_env, entry->ir.sym, entry);
         }
 
         chain = env->dict[i]->next;
         while (chain != NULL) {
-            if (chain->ir.t == SYMBOLIC) {
+            if (chain->ir.t == ENV_SYMBOLIC) {
                 chain->ir.reg = UNINITIALIZED;
                 add_entry(sym_env, chain->ir.sym, chain);
             }
