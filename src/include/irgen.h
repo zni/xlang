@@ -5,6 +5,7 @@
 #include "env.h"
 
 typedef enum quad_type {
+    QT_STORAGE,
     QT_UNCOND_JMP,
     QT_COND_JMP,
     QT_COPY,
@@ -30,7 +31,8 @@ typedef enum quad_op {
     Q_GOTO,
     Q_CMP,
     Q_NOP,
-    Q_RETURN
+    Q_RETURN,
+    Q_WORD
 } quad_op_t;
 
 typedef enum quad_result {
@@ -67,9 +69,15 @@ struct quad_ {
     quadr_t *next;
 };
 
+typedef enum quadblock_type {
+    QB_DATA,
+    QB_CODE
+} quadblock_type_t;
+
 struct quadblock;
 typedef struct quadblock quadblock_t;
 struct quadblock {
+    quadblock_type_t t;
     quadr_t *lines;
     quadblock_t *next;
 

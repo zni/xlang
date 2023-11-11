@@ -7,7 +7,7 @@
 
 unsigned int SYMBOL_INDEX = 0;
 
-void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env);
+quadblock_t* convert_blocks_to_quads(block_t *block, env_t *env);
 void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env);
 void convert_stmts_to_quads(statement_t *stmt, quadblock_t *quads, env_t *env);
 void convert_expr_to_stack(expression_t *node, expr_stack_t *stack);
@@ -16,6 +16,7 @@ char* convert_expr_stack_to_quads(expr_stack_t*, quadblock_t*, env_t *env);
 char* new_symbol(env_t*, bool);
 char* lookup_sym(env_t*, char*);
 
+quadr_t* generate_word_storage(char *name);
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result, env_t *env);
 quadr_t* generate_jump_target(char *label);
 quadr_t* generate_cmp_zero(char *sym, env_t *env);
@@ -136,10 +137,18 @@ void debug_stack(expr_stack_t *s)
 
 void debug_quads(quadblock_t *q)
 {
-    quadblock_t *b = q->next;
+    quadblock_t *b = q;
     while (b != NULL) {
         printf("begin block\n");
         printf("===========\n");
+        printf("type: ");
+        if (b->t == QB_DATA) {
+            printf("QB_DATA\n");
+        } else {
+            printf("QB_CODE\n");
+        }
+        printf("===========\n");
+
         quadr_t *tmp = b->lines;
         while (tmp != NULL) {
             switch (tmp->op) {
@@ -158,11 +167,7 @@ void debug_quads(quadblock_t *q)
                 if (tmp->result.t == Q_CONSTANT) {
                     printf("%d\n", tmp->result.constant);
                 } else {
-                    if (tmp->result.t == Q_VARIABLE) {
-                        printf("VAR %s\n", tmp->result.sym);
-                    } else {
-                        printf("SYM %s\n", tmp->result.sym);
-                    }
+                    printf("%s\n", tmp->result.sym);
                 }
                 break;
             case Q_SUB:
@@ -265,16 +270,14 @@ void debug_quads(quadblock_t *q)
                 if (tmp->result.t == Q_CONSTANT) {
                     printf("%d\n", tmp->result.constant);
                 } else {
-                    if (tmp->result.t == Q_VARIABLE) {
-                        printf("VAR %s\n", tmp->result.sym);
-                    } else {
-                        printf("SYM %s\n", tmp->result.sym);
-                    }
+                    printf("%s\n", tmp->result.sym);
                 }
                 break;
             case Q_RETURN:
                 printf("\tRETURN\n");
                 break;
+            case Q_WORD:
+                printf("WORD\t%s\n", tmp->label);
             }
             tmp = tmp->next;
         }
@@ -285,61 +288,71 @@ void debug_quads(quadblock_t *q)
 
 quadblock_t* convert_to_quads(program_t *program, env_t *env)
 {
-    quadblock_t *quadblocks = new_quadblock();
-    convert_blocks_to_quads(program->blocks, quadblocks, env);
+    quadblock_t *quadblocks = NULL;
+    block_t *block = program->blocks;
+    while (block != NULL) {
+        if (quadblocks == NULL)
+            quadblocks = convert_blocks_to_quads(program->blocks, env);
+        else
+            quadblocks->append_block(quadblocks, convert_blocks_to_quads(block, env));
+
+        block = block->next;
+    }
     debug_quads(quadblocks);
     return quadblocks;
 }
 
 
-void convert_blocks_to_quads(block_t *block, quadblock_t *quads, env_t *env)
+quadblock_t* convert_blocks_to_quads(block_t *block, env_t *env)
 {
-    while (block != NULL) {
-        if (block->t == PROCEDURE) {
-            quadblock_t *procblock = new_quadblock();
+    if (block->t == PROCEDURE) {
+        quadblock_t *procblock = new_quadblock();
+        procblock->t = QB_CODE;
 
-            char *sub_label = new_symbol(env, false);
-            env_data_t *data = malloc(sizeof(env_data_t));
-            data->name = block->procedure.name;
-            data->ir.orig = block->procedure.name;
-            data->ir.sym = sub_label;
-            data->ir.t = ENV_FUNCTION;
-            add_entry(env, block->procedure.name, data);
+        char *sub_label = new_symbol(env, false);
+        env_data_t *data = malloc(sizeof(env_data_t));
+        data->name = block->procedure.name;
+        data->ir.orig = block->procedure.name;
+        data->ir.sym = sub_label;
+        data->ir.t = ENV_FUNCTION;
+        add_entry(env, block->procedure.name, data);
 
-            quadr_t *subroutine = malloc(sizeof(quadr_t));
-            subroutine->t = QT_NOP;
-            subroutine->op = Q_NOP;
-            subroutine->label = sub_label;
-            subroutine->arg1.t = Q_NONE;
-            subroutine->arg2.t = Q_NONE;
-            subroutine->result.t = Q_NONE;
-            procblock->append_line(procblock, subroutine);
+        quadr_t *subroutine = malloc(sizeof(quadr_t));
+        subroutine->t = QT_NOP;
+        subroutine->op = Q_NOP;
+        subroutine->label = sub_label;
+        subroutine->arg1.t = Q_NONE;
+        subroutine->arg2.t = Q_NONE;
+        subroutine->result.t = Q_NONE;
+        procblock->append_line(procblock, subroutine);
 
-            block_t *ctx = block->procedure.context;
-            while (ctx != NULL) {
-                if (ctx->t == STATEMENT) {
-                    convert_stmts_to_quads(ctx->stmts, procblock, env);
-                }
-                ctx = ctx->next;
+        block_t *ctx = block->procedure.context;
+        while (ctx != NULL) {
+            if (ctx->t == STATEMENT) {
+                convert_stmts_to_quads(ctx->stmts, procblock, env);
             }
-
-            quadr_t *rts = malloc(sizeof(quadr_t));
-            rts->t = QT_PROCEDURE;
-            rts->op = Q_RETURN;
-            rts->label = NULL;
-            rts->arg1.t = Q_NONE;
-            rts->arg2.t = Q_NONE;
-            rts->result.t = Q_NONE;
-            procblock->append_line(procblock, rts);
-            quads->append_block(quads, procblock);
-        } else if (block->t == DECLARATION) {
-            convert_decs_to_quads(block->decs, quads, env);
-        } else if (block->t == STATEMENT) {
-            quadblock_t *stmtblock = new_quadblock();
-            convert_stmts_to_quads(block->stmts, stmtblock, env);
-            quads->append_block(quads, stmtblock);
+            ctx = ctx->next;
         }
-        block = block->next;
+
+        quadr_t *rts = malloc(sizeof(quadr_t));
+        rts->t = QT_PROCEDURE;
+        rts->op = Q_RETURN;
+        rts->label = NULL;
+        rts->arg1.t = Q_NONE;
+        rts->arg2.t = Q_NONE;
+        rts->result.t = Q_NONE;
+        procblock->append_line(procblock, rts);
+        return procblock;
+    } else if (block->t == DECLARATION) {
+        quadblock_t *storage_block = new_quadblock();
+        storage_block->t = QB_DATA;
+        convert_decs_to_quads(block->decs, storage_block, env);
+        return storage_block;
+    } else {
+        quadblock_t *stmtblock = new_quadblock();
+        stmtblock->t = QB_CODE;
+        convert_stmts_to_quads(block->stmts, stmtblock, env);
+        return stmtblock;
     }
 }
 
@@ -347,11 +360,13 @@ void convert_decs_to_quads(var_dec_t *dec, quadblock_t *quads, env_t *env)
 {
     while (dec != NULL) {
         env_data_t *data = malloc(sizeof(env_data_t));
+        char *sym = new_symbol(env, false);
         data->name = dec->var;
         data->ir.orig = dec->var;
-        data->ir.sym = new_symbol(env, false);
+        data->ir.sym = sym;
         data->ir.t = ENV_VARIABLE;
         add_entry(env, dec->var, data);
+        quads->append_line(quads, generate_word_storage(sym));
 
         dec = dec->next;
     }
@@ -586,7 +601,22 @@ char* new_symbol(env_t *env, bool update_env)
     return sym;
 }
 
-quadr_t* generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result, env_t *env)
+quadr_t *generate_word_storage(char *name)
+{
+    quadr_t *storage = malloc(sizeof(quadr_t));
+    storage->next = NULL;
+
+    storage->t = QT_STORAGE;
+    storage->op = Q_WORD;
+    storage->label = name;
+    storage->arg1.t = Q_NONE;
+    storage->arg2.t = Q_NONE;
+    storage->result.t = Q_NONE;
+
+    return storage;
+}
+
+quadr_t *generate_binary_expr_quad(quad_op_t op, char *arg1, char *arg2, char *result, env_t *env)
 {
     // Handle arithemetic operations.
     quadr_t *bin = malloc(sizeof(quadr_t));

@@ -44,6 +44,11 @@ typedef struct register_pool {
  * Assembly Structures
  */
 
+typedef enum asm_type {
+    ASM_DATA,
+    ASM_CODE
+} asm_type_t;
+
 typedef enum asm_op {
     ASM_MOV,
     ASM_ADD,
@@ -60,7 +65,8 @@ typedef enum asm_op {
     ASM_JSR,
     ASM_RTS,
     ASM_HALT,
-    ASM_NOP
+    ASM_NOP,
+    ASM_WORD
 } asm_op_t;
 
 typedef enum asm_arg {
@@ -96,6 +102,7 @@ struct assembly {
 struct assembly_block;
 typedef struct assembly_block assembly_block_t;
 struct assembly_block {
+    asm_type_t t;
     assembly_t *code;
     unsigned int instruction_count;
 

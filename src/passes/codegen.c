@@ -8,8 +8,8 @@ void debug_lifetimes(interval_list_t*);
 
 void print_assembly_blocks(assembly_block_t*);
 void print_assembly(assembly_t*);
-void print_var_space(set_t*);
 assembly_block_t* generate_assembly(quadblock_t*, env_t*);
+assembly_t* generate_WORD(quadr_t*, env_t*);
 assembly_t* generate_MOV(quadr_t*, env_t*);
 assembly_t* generate_ADD(quadr_t*, env_t*);
 assembly_t* generate_SUB(quadr_t*, env_t*);
@@ -135,6 +135,9 @@ void print_assembly(assembly_t *code)
         case ASM_RTS:
             printf("RTS");
             break;
+        case ASM_WORD:
+            printf(".WORD");
+            break;
         default:
             printf("XXX");
     }
@@ -143,7 +146,11 @@ void print_assembly(assembly_t *code)
         case ASM_NONE:
             break;
         case ASM_CONSTANT:
-            printf(" #%d", code->operand1.constant);
+            if (code->op == ASM_WORD) {
+                printf(" %d", code->operand1.constant);
+            } else {
+                printf(" #%d", code->operand1.constant);
+            }
             break;
         case ASM_LABEL:
         case ASM_MEMORY:
@@ -179,23 +186,15 @@ void print_assembly(assembly_t *code)
     putchar('\n');
 }
 
-void print_var_space(set_t *var_set)
-{
-    for (int i = 0; i < SET_SIZE; i++) {
-        if (var_set->s[i] == NULL)
-            continue;
-
-        set_element_t *var = var_set->s[i];
-        while (var != NULL) {
-            printf("%s:\t.WORD 0\n", var->sym);
-            var = var->next;
-        }
-    }
-}
-
 assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
 {
     assembly_block_t *codeblock = new_assembly_block();
+    if (block->t == QB_CODE) {
+        codeblock->t = ASM_CODE;
+    } else {
+        codeblock->t = ASM_DATA;
+    }
+
     assembly_t *code;
     quadr_t *line = block->lines;
     while (line != NULL) {
@@ -239,14 +238,33 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
             case Q_RETURN:
                 code = generate_RTS(line, env);
                 break;
+            case Q_WORD:
+                code = generate_WORD(line, env);
+                break;
             default:
                 continue;
         }
         line = line->next;
         append_assembly(codeblock, code);
     }
-    remove_nops(&codeblock);
+    if (codeblock->t == ASM_CODE) {
+        remove_nops(&codeblock);
+    }
     return codeblock;
+}
+
+assembly_t *generate_WORD(quadr_t *line, env_t *env)
+{
+    assembly_t *word = malloc(sizeof(assembly_t));
+    word->next = NULL;
+
+    word->op = ASM_WORD;
+    word->label = line->label;
+    word->operand1.t = ASM_CONSTANT;
+    word->operand1.constant = 0;
+    word->operand2.t = ASM_NONE;
+
+    return word;
 }
 
 assembly_t* generate_MOV(quadr_t *line, env_t *env)
@@ -558,16 +576,18 @@ void generate_code(quadblock_t *blocks, env_t *env)
 {
     //env_t *sym_env = build_sym_env(env);
     set_t *var_set = new_set();
-    quadblock_t *b = blocks->next;
+    quadblock_t *b = blocks;
     while (b != NULL) {
-        interval_list_t *lifetimes = calculate_liveness_intervals(b, env, var_set);
-        sort_by_lower(&lifetimes);
-        assign_registers(lifetimes, env);
+        if (b->t == QB_CODE) {
+            interval_list_t *lifetimes = calculate_liveness_intervals(b, env, var_set);
+            sort_by_lower(&lifetimes);
+            assign_registers(lifetimes, env);
+        }
         b = b->next;
     }
 
     assembly_block_t *main_block = NULL;
-    b = blocks->next;
+    b = blocks;
     while (b != NULL) {
         if (main_block == NULL)
             main_block = generate_assembly(b, env);
@@ -578,7 +598,6 @@ void generate_code(quadblock_t *blocks, env_t *env)
     }
 
     print_assembly_blocks(main_block);
-    print_var_space(var_set);
 }
 
 interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env, set_t *var_set)
