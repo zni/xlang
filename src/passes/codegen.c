@@ -24,6 +24,7 @@ assembly_t* generate_JSR(quadr_t*, env_t*);
 assembly_t* generate_RTS(quadr_t*, env_t*);
 assembly_t* generate_HALT();
 void remove_nops(assembly_block_t**);
+void replace_label(assembly_block_t**, char*, char*);
 
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
@@ -464,7 +465,14 @@ void remove_nops(assembly_block_t **block)
         } else if (current->op == ASM_NOP && current->next != NULL) {
             label = current->label;
             prev->next = current->next;
-            current->next->label = label;
+            if (current->next->label == NULL) {
+                current->next->label = label;
+            } else if (current->next->op == ASM_NOP &&
+                       current->next->label != NULL) {
+                replace_label(block, label, current->next->label);
+            } else if (current->next->label != NULL) {
+                replace_label(block, label, current->next->label);
+            }
             (*block)->instruction_count--;
 
         // If we have nowhere to go, convert to HALT.
@@ -477,6 +485,19 @@ void remove_nops(assembly_block_t **block)
         prev = current;
         current = current->next;
 
+    }
+}
+
+void replace_label(assembly_block_t **block, char *old_label, char *new_label)
+{
+    assembly_t *code = (*block)->code;
+    while (code != NULL) {
+        if (code->operand1.t == ASM_LABEL) {
+            if (strcmp(code->operand1.memory, old_label) == 0) {
+                code->operand1.memory = new_label;
+            }
+        }
+        code = code->next;
     }
 }
 
