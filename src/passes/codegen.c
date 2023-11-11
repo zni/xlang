@@ -25,7 +25,7 @@ assembly_t* generate_JSR(quadr_t*, env_t*);
 assembly_t* generate_RTS(quadr_t*, env_t*);
 assembly_t* generate_HALT();
 void remove_nops(assembly_block_t**);
-void replace_label(assembly_block_t**, char*, char*);
+void replace_label(assembly_block_t*, char*, char*);
 
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
@@ -243,8 +243,11 @@ assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
             case Q_WORD:
                 code = generate_WORD(line, env);
                 break;
+            case Q_HALT:
+                code = generate_HALT();
+                break;
             default:
-                continue;
+                break;
         }
         line = line->next;
         append_assembly(codeblock, code);
@@ -504,33 +507,24 @@ void remove_nops(assembly_block_t **block)
             if (current->next->label == NULL) {
                 current->next->label = label;
 
-            // Next op is a NOP with a label, just replace it and backpatch.
-            } else if (current->next->op == ASM_NOP &&
-                       current->next->label != NULL) {
-                replace_label(block, label, current->next->label);
-
-            // Next op is not a NOP and it has a label, replace it and backpatch.
+            // Next op has a label, replace it and backpatch.
             } else if (current->next->label != NULL) {
-                replace_label(block, label, current->next->label);
+                replace_label(*block, label, current->next->label);
             }
             (*block)->instruction_count--;
-
-        // If we have nowhere to go, convert to HALT.
-        // Since the only block ending with a NOP and
-        // with nowhere to go is the main block.
-        } else if (current->op == ASM_NOP && current->next == NULL) {
-            current->op = ASM_HALT;
         }
 
-        prev = current;
+        if (current->op != ASM_NOP) {
+            prev = current;
+        }
         current = current->next;
 
     }
 }
 
-void replace_label(assembly_block_t **block, char *old_label, char *new_label)
+void replace_label(assembly_block_t *block, char *old_label, char *new_label)
 {
-    assembly_t *code = (*block)->code;
+    assembly_t *code = block->code;
     while (code != NULL) {
         if (code->operand1.t == ASM_LABEL) {
             if (strcmp(code->operand1.memory, old_label) == 0) {

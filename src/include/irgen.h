@@ -32,7 +32,8 @@ typedef enum quad_op {
     Q_CMP,
     Q_NOP,
     Q_RETURN,
-    Q_WORD
+    Q_WORD,
+    Q_HALT
 } quad_op_t;
 
 typedef enum quad_result {

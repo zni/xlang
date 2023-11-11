@@ -18,6 +18,7 @@ char* lookup_sym(env_t*, char*);
 
 quadr_t* generate_word_storage(char *name);
 quadr_t* generate_binary_expr_quad(quad_op_t t, char *arg1, char *arg2, char *result, env_t *env);
+quadr_t* generate_halt();
 quadr_t* generate_jump_target(char *label);
 quadr_t* generate_cmp_zero(char *sym, env_t *env);
 quadr_t* generate_jmp(quad_type_t jmp_type, quad_op_t jmp_op, char* jump_label);
@@ -257,6 +258,12 @@ void debug_quads(quadblock_t *q)
                 else
                     printf("\tNOP\n");
                 break;
+            case Q_HALT:
+                if (tmp->label != NULL)
+                    printf("%s:\tHALT\n", tmp->label);
+                else
+                    printf("\tHALT\n");
+                break;
             case Q_GOTO:
                 printf("\tGOTO\t%s\n", tmp->arg1.sym);
                 break;
@@ -355,7 +362,7 @@ quadblock_t* convert_blocks_to_quads(block_t *block, env_t *env)
         quadblock_t *stmtblock = new_quadblock();
         stmtblock->t = QB_CODE;
         convert_stmts_to_quads(block->stmts, stmtblock, env);
-        append_line(stmtblock, generate_jump_target(NULL));
+        append_line(stmtblock, generate_halt());
         return stmtblock;
     }
 }
@@ -763,6 +770,19 @@ quadr_t* generate_jump_target(char *label)
     jump_target->t = QT_NOP;
     jump_target->label = label;
     jump_target->op = Q_NOP;
+    jump_target->arg1.t = Q_NONE;
+    jump_target->arg2.t = Q_NONE;
+    jump_target->result.t = Q_NONE;
+
+    return jump_target;
+}
+
+quadr_t* generate_halt()
+{
+    quadr_t *jump_target = malloc(sizeof(quadr_t));
+    jump_target->t = QT_NOP;
+    jump_target->label = NULL;
+    jump_target->op = Q_HALT;
     jump_target->arg1.t = Q_NONE;
     jump_target->arg2.t = Q_NONE;
     jump_target->result.t = Q_NONE;
