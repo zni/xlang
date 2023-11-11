@@ -8,6 +8,7 @@ void debug_lifetimes(interval_list_t*);
 
 void print_assembly_blocks(assembly_block_t*);
 void print_assembly(assembly_t*);
+void print_var_space(set_t*);
 assembly_block_t* generate_assembly(quadblock_t*, env_t*);
 assembly_t* generate_MOV(quadr_t*, env_t*);
 assembly_t* generate_ADD(quadr_t*, env_t*);
@@ -28,7 +29,7 @@ void replace_label(assembly_block_t**, char*, char*);
 
 void populate_operand(quad_arg_t*, asm_operand_t*, env_t*);
 
-interval_list_t* calculate_liveness_intervals(quadblock_t*, env_t*);
+interval_list_t* calculate_liveness_intervals(quadblock_t*, env_t*, set_t*);
 void assign_registers(interval_list_t*, env_t*);
 void expire_old_intervals(interval_t*, interval_list_t**, env_t*, register_pool_t*);
 void spill(char*, env_t*);
@@ -176,6 +177,20 @@ void print_assembly(assembly_t *code)
             break;
     }
     putchar('\n');
+}
+
+void print_var_space(set_t *var_set)
+{
+    for (int i = 0; i < SET_SIZE; i++) {
+        if (var_set->s[i] == NULL)
+            continue;
+
+        set_element_t *var = var_set->s[i];
+        while (var != NULL) {
+            printf("%s:\t.WORD 0\n", var->sym);
+            var = var->next;
+        }
+    }
 }
 
 assembly_block_t *generate_assembly(quadblock_t *block, env_t *env)
@@ -445,7 +460,6 @@ assembly_t* generate_HALT()
 }
 
 // A naive NOP remover.
-// TODO Take into account sliding a label over another label.
 void remove_nops(assembly_block_t **block)
 {
     assembly_t *prev    = (*block)->code;
@@ -465,11 +479,17 @@ void remove_nops(assembly_block_t **block)
         } else if (current->op == ASM_NOP && current->next != NULL) {
             label = current->label;
             prev->next = current->next;
+
+            // Simple case, next label is empty, just fill it.
             if (current->next->label == NULL) {
                 current->next->label = label;
+
+            // Next op is a NOP with a label, just replace it and backpatch.
             } else if (current->next->op == ASM_NOP &&
                        current->next->label != NULL) {
                 replace_label(block, label, current->next->label);
+
+            // Next op is not a NOP and it has a label, replace it and backpatch.
             } else if (current->next->label != NULL) {
                 replace_label(block, label, current->next->label);
             }
@@ -537,9 +557,10 @@ void populate_operand(quad_arg_t *qa, asm_operand_t *op, env_t *env)
 void generate_code(quadblock_t *blocks, env_t *env)
 {
     //env_t *sym_env = build_sym_env(env);
+    set_t *var_set = new_set();
     quadblock_t *b = blocks->next;
     while (b != NULL) {
-        interval_list_t *lifetimes = calculate_liveness_intervals(b, env);
+        interval_list_t *lifetimes = calculate_liveness_intervals(b, env, var_set);
         sort_by_lower(&lifetimes);
         assign_registers(lifetimes, env);
         b = b->next;
@@ -557,9 +578,10 @@ void generate_code(quadblock_t *blocks, env_t *env)
     }
 
     print_assembly_blocks(main_block);
+    print_var_space(var_set);
 }
 
-interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
+interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env, set_t *var_set)
 {
     interval_list_t *lifetimes = new_interval_list();
     set_t *syms = new_set();
@@ -568,14 +590,20 @@ interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env)
     while (line != NULL) {
         if (line->arg1.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->arg1.sym);
+        } else if (line->arg1.t == Q_VARIABLE) {
+            add_item_to_set(var_set, line->arg1.sym);
         }
 
         if (line->arg2.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->arg2.sym);
+        } else if (line->arg2.t == Q_VARIABLE) {
+            add_item_to_set(var_set, line->arg2.sym);
         }
 
         if (line->result.t == Q_SYMBOLIC) {
             add_item_to_set(syms, line->result.sym);
+        } else if (line->result.t == Q_VARIABLE) {
+            add_item_to_set(var_set, line->result.sym);
         }
 
         line = line->next;
