@@ -252,7 +252,10 @@ void debug_quads(quadblock_t *q)
                 }
                 break;
             case Q_NOP:
-                printf("%s:\tNOP\n", tmp->label);
+                if (tmp->label != NULL)
+                    printf("%s:\tNOP\n", tmp->label);
+                else
+                    printf("\tNOP\n");
                 break;
             case Q_GOTO:
                 printf("\tGOTO\t%s\n", tmp->arg1.sym);
@@ -298,7 +301,7 @@ quadblock_t* convert_to_quads(program_t *program, env_t *env)
 
         block = block->next;
     }
-    debug_quads(quadblocks);
+    //debug_quads(quadblocks);
     return quadblocks;
 }
 
@@ -352,6 +355,7 @@ quadblock_t* convert_blocks_to_quads(block_t *block, env_t *env)
         quadblock_t *stmtblock = new_quadblock();
         stmtblock->t = QB_CODE;
         convert_stmts_to_quads(block->stmts, stmtblock, env);
+        append_line(stmtblock, generate_jump_target(NULL));
         return stmtblock;
     }
 }

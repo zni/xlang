@@ -6,7 +6,7 @@
 
 void debug_lifetimes(interval_list_t*);
 
-void print_assembly_blocks(assembly_block_t*);
+void print_assembly_blocks(assembly_block_t*, asm_type_t);
 void print_assembly(assembly_t*);
 assembly_block_t* generate_assembly(quadblock_t*, env_t*);
 assembly_t* generate_WORD(quadr_t*, env_t*);
@@ -68,14 +68,16 @@ void debug_lifetimes(interval_list_t *lifetimes)
 
 }
 
-void print_assembly_blocks(assembly_block_t *block)
+void print_assembly_blocks(assembly_block_t *block, asm_type_t type)
 {
     assembly_t *code;
     assembly_block_t *b = block;
     while  (b != NULL) {
-        for (int i = 0; i < b->instruction_count; i++) {
-            code = get_assembly(b, i);
-            print_assembly(code);
+        if (b->t == type) {
+            for (int i = 0; i < b->instruction_count; i++) {
+                code = get_assembly(b, i);
+                print_assembly(code);
+            }
         }
         b = b->next;
     }
@@ -597,7 +599,8 @@ void generate_code(quadblock_t *blocks, env_t *env)
         b = b->next;
     }
 
-    print_assembly_blocks(main_block);
+    print_assembly_blocks(main_block, ASM_CODE);
+    print_assembly_blocks(main_block, ASM_DATA);
 }
 
 interval_list_t* calculate_liveness_intervals(quadblock_t *block, env_t *env, set_t *var_set)
